@@ -49,7 +49,8 @@ public class SchematicUploadHandler {
                 upload(filePath);
             } catch (Exception e) {
                 LOGGER.error("Failed to upload schematic", e);
-                sendErrorMessage(e.getMessage());
+                sendChatMessage(Component.translatable("createschematicupload.upload.failed")
+                        .withStyle(ChatFormatting.YELLOW));
             }
         });
     }
@@ -106,12 +107,15 @@ public class SchematicUploadHandler {
                 sendChatMessage(Component.translatable("createschematicupload.upload.already_exists")
                         .withStyle(ChatFormatting.YELLOW));
             } else {
-                String error = json.has("error") ? json.get("error").getAsString() : "Unknown error (HTTP " + status + ")";
-                sendErrorMessage(error);
+                String error = json.has("error") ? json.get("error").getAsString() : "Unknown error";
+                LOGGER.error("Upload failed (HTTP {}): {}", status, error);
+                sendChatMessage(Component.translatable("createschematicupload.upload.failed")
+                        .withStyle(ChatFormatting.YELLOW));
             }
         } catch (Exception e) {
-            LOGGER.error("Failed to parse upload response", e);
-            sendErrorMessage("Invalid response from server (HTTP " + status + ")");
+            LOGGER.error("Failed to parse upload response (HTTP {})", status, e);
+            sendChatMessage(Component.translatable("createschematicupload.upload.failed")
+                    .withStyle(ChatFormatting.YELLOW));
         }
     }
 
@@ -128,11 +132,6 @@ public class SchematicUploadHandler {
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
 
         return baos.toByteArray();
-    }
-
-    private static void sendErrorMessage(String error) {
-        sendChatMessage(Component.translatable("createschematicupload.upload.error", error)
-                .withStyle(ChatFormatting.RED));
     }
 
     private static void sendChatMessage(Component message) {
