@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.uberswe.createschematicupload.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "minVersion": "0.8",
+  "client": [
+    "SchematicAndQuillHandlerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
