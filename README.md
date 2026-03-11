@@ -12,8 +12,8 @@
 <p align="center">
   <a href="https://github.com/uberswe/CreateSchematicUpload/actions/workflows/build.yml"><img src="https://github.com/uberswe/CreateSchematicUpload/actions/workflows/build.yml/badge.svg" alt="Build"></a>
   <a href="https://github.com/uberswe/CreateSchematicUpload/releases/latest"><img src="https://img.shields.io/github/v/release/uberswe/CreateSchematicUpload?include_prereleases&sort=semver&logo=github" alt="GitHub Release"></a>
-  <a href="https://modrinth.com/mod/create-schematic-upload"><img src="https://img.shields.io/modrinth/dt/create-schematic-upload?logo=modrinth&label=Modrinth" alt="Modrinth Downloads"></a>
-  <a href="https://www.curseforge.com/minecraft/mc-mods/create-schematic-upload"><img src="https://img.shields.io/curseforge/dt/create-schematic-upload?logo=curseforge&label=CurseForge" alt="CurseForge Downloads"></a>
+  <a href="https://modrinth.com/mod/create-schematic-upload"><img src="https://img.shields.io/modrinth/dt/vDsPXWBh?logo=modrinth&label=Modrinth" alt="Modrinth Downloads"></a>
+  <a href="https://www.curseforge.com/projects/1483578"><img src="https://img.shields.io/curseforge/dt/1483578?logo=curseforge&label=CurseForge" alt="CurseForge Downloads"></a>
   <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A?logo=minecraft" alt="Minecraft 1.21.1">
   <img src="https://img.shields.io/badge/NeoForge-21.1-orange?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABHSURBVDhPYxgFgwAwQmkMwCRQ0f8Bpv///88AxFgBSCMTlEYGWDUiA2SNyACnRmSAohEZ4NWIDMg2YtMEF0PWBKUBA4PBAACwBSE34GZTQQAAAABJRU5ErkJggg==" alt="NeoForge">
   <a href="https://github.com/uberswe/CreateSchematicUpload/blob/main/LICENSE"><img src="https://img.shields.io/github/license/uberswe/CreateSchematicUpload" alt="License"></a>
