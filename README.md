@@ -16,7 +16,7 @@
   <a href="https://www.curseforge.com/projects/1483578"><img src="https://img.shields.io/curseforge/dt/1483578?logo=curseforge&label=CurseForge" alt="CurseForge Downloads"></a>
   <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A?logo=minecraft" alt="Minecraft 1.21.1">
   <img src="https://img.shields.io/badge/NeoForge-21.1-orange?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABHSURBVDhPYxgFgwAwQmkMwCRQ0f8Bpv///88AxFgBSCMTlEYGWDUiA2SNyACnRmSAohEZ4NWIDMg2YtMEF0PWBKUBA4PBAACwBSE34GZTQQAAAABJRU5ErkJggg==" alt="NeoForge">
-  <a href="https://github.com/uberswe/CreateSchematicUpload/blob/main/LICENSE"><img src="https://img.shields.io/github/license/uberswe/CreateSchematicUpload" alt="License"></a>
+  <a href="https://github.com/uberswe/CreateSchematicUpload/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-All%20Rights%20Reserved-blue" alt="License"></a>
 </p>
 
 ---
