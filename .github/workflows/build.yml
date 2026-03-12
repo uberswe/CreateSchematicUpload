@@ -33,6 +33,9 @@ jobs:
       - name: Verify JARs
         run: ./scripts/verify-jars.sh
 
+      - name: Test mixin target
+        run: ./scripts/test-mixin-target.sh
+
       - name: Find built JARs
         id: jars
         run: |
