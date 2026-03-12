@@ -14,8 +14,6 @@ legacyForge {
 
 dependencies {
     compileOnly("org.spongepowered:mixin:0.8.5")
-    compileOnly("io.github.llamalad7:mixinextras-common:0.3.5")
-    annotationProcessor("io.github.llamalad7:mixinextras-common:0.3.5")
 
     compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
         transitive = false
