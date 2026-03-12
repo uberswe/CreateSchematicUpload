@@ -1,6 +1,6 @@
 package com.uberswe.createschematicupload;
 
-import net.minecraft.client.gui.GuiGraphics;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -22,25 +22,28 @@ public class SchematicUploadConfirmScreen extends Screen {
         int centerX = this.width / 2;
         int centerY = this.height / 2;
 
-        this.addRenderableWidget(Button.builder(
+        this.addRenderableWidget(new Button(
+                centerX - 105, centerY + 10, 100, 20,
                 Component.translatable("createschematicupload.confirm.upload"),
                 button -> {
                     SchematicUploadHandler.confirmUpload(filePath);
                     this.onClose();
                 }
-        ).bounds(centerX - 105, centerY + 10, 100, 20).build());
+        ));
 
-        this.addRenderableWidget(Button.builder(
+        this.addRenderableWidget(new Button(
+                centerX + 5, centerY + 10, 100, 20,
                 Component.translatable("createschematicupload.confirm.cancel"),
                 button -> this.onClose()
-        ).bounds(centerX + 5, centerY + 10, 100, 20).build());
+        ));
     }
 
     @Override
-    public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, this.height / 2 - 40, 0xFFFFFF);
-        guiGraphics.drawCenteredString(this.font,
+    public void render(PoseStack poseStack, int mouseX, int mouseY, float partialTick) {
+        this.renderBackground(poseStack);
+        super.render(poseStack, mouseX, mouseY, partialTick);
+        drawCenteredString(poseStack, this.font, this.title, this.width / 2, this.height / 2 - 40, 0xFFFFFF);
+        drawCenteredString(poseStack, this.font,
                 Component.translatable("createschematicupload.confirm.message", fileName),
                 this.width / 2, this.height / 2 - 20, 0xCCCCCC);
     }

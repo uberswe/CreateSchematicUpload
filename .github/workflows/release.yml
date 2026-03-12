@@ -33,7 +33,6 @@ jobs:
         with:
           files: |
             forge/build/libs/!(*-sources).jar
-            neoforge/build/libs/!(*-sources).jar
             fabric/build/libs/!(*-sources).jar
 
       - name: Publish Forge to CurseForge and Modrinth
@@ -50,33 +49,12 @@ jobs:
           version-type: release
           changelog: ${{ env.RELEASE_CHANGELOG }}
 
-          game-versions: 1.20.1
+          game-versions: 1.19.2
           loaders: forge
           dependencies: |
             create(required)
 
           files: forge/build/libs/!(*-sources).jar
-
-      - name: Publish NeoForge to CurseForge and Modrinth
-        uses: Kir-Antipov/mc-publish@v3.3
-        with:
-          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
-          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
-
-          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
-          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
-
-          name: CreateSchematicUpload ${{ env.RELEASE_TAG }} (NeoForge)
-          version: ${{ env.RELEASE_TAG }}+neoforge
-          version-type: release
-          changelog: ${{ env.RELEASE_CHANGELOG }}
-
-          game-versions: 1.20.1
-          loaders: neoforge
-          dependencies: |
-            create(required)
-
-          files: neoforge/build/libs/!(*-sources).jar
 
       - name: Publish Fabric to CurseForge and Modrinth
         uses: Kir-Antipov/mc-publish@v3.3
@@ -92,7 +70,7 @@ jobs:
           version-type: release
           changelog: ${{ env.RELEASE_CHANGELOG }}
 
-          game-versions: 1.20.1
+          game-versions: 1.19.2
           loaders: fabric
           dependencies: |
             create(required)

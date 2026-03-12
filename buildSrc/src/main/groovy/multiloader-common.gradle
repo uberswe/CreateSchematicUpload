@@ -38,6 +38,10 @@ repositories {
         name = "BlameJared Maven"
         url = "https://maven.blamejared.com"
     }
+    maven {
+        name = "Modrinth Maven"
+        url = "https://api.modrinth.com/maven"
+    }
 }
 
 // Expose source directories to loader subprojects
