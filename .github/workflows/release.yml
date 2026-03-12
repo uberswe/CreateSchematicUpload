@@ -59,43 +59,60 @@ jobs:
       - name: Build
         run: ./gradlew build
 
-      - name: Detect loaders
-        id: loaders
+      - name: Find built JARs
+        id: jars
         run: |
-          has_forge=false
-          has_neoforge=false
-          has_fabric=false
-          [[ -d forge/build/libs ]] && ls forge/build/libs/*.jar &>/dev/null && has_forge=true
-          [[ -d neoforge/build/libs ]] && ls neoforge/build/libs/*.jar &>/dev/null && has_neoforge=true
-          [[ -d fabric/build/libs ]] && ls fabric/build/libs/*.jar &>/dev/null && has_fabric=true
-          echo "has_forge=${has_forge}" >> "$GITHUB_OUTPUT"
-          echo "has_neoforge=${has_neoforge}" >> "$GITHUB_OUTPUT"
-          echo "has_fabric=${has_fabric}" >> "$GITHUB_OUTPUT"
+          find_jar() {
+            local dir="$1"
+            if [ -d "$dir" ]; then
+              # Find JARs excluding sources JARs
+              local jar
+              jar=$(find "$dir" -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' | head -1)
+              if [ -n "$jar" ]; then
+                echo "$jar"
+                return 0
+              fi
+            fi
+            return 1
+          }
+
+          forge_jar=$(find_jar forge/build/libs) || true
+          neoforge_jar=$(find_jar neoforge/build/libs) || true
+          fabric_jar=$(find_jar fabric/build/libs) || true
+
+          echo "forge_jar=${forge_jar}" >> "$GITHUB_OUTPUT"
+          echo "neoforge_jar=${neoforge_jar}" >> "$GITHUB_OUTPUT"
+          echo "fabric_jar=${fabric_jar}" >> "$GITHUB_OUTPUT"
+
+          echo "Found JARs:"
+          echo "  forge: ${forge_jar:-none}"
+          echo "  neoforge: ${neoforge_jar:-none}"
+          echo "  fabric: ${fabric_jar:-none}"
 
       - name: Upload Forge JAR
-        if: steps.loaders.outputs.has_forge == 'true'
+        if: steps.jars.outputs.forge_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: forge-${{ matrix.game-version }}
-          path: forge/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.forge_jar }}
 
       - name: Upload NeoForge JAR
-        if: steps.loaders.outputs.has_neoforge == 'true'
+        if: steps.jars.outputs.neoforge_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: neoforge-${{ matrix.game-version }}
-          path: neoforge/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.neoforge_jar }}
 
       - name: Upload Fabric JAR
-        if: steps.loaders.outputs.has_fabric == 'true'
+        if: steps.jars.outputs.fabric_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: fabric-${{ matrix.game-version }}
-          path: fabric/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.fabric_jar }}
 
       # Publish Forge
       - name: Publish Forge to CurseForge & Modrinth
-        if: steps.loaders.outputs.has_forge == 'true' && (github.event_name == 'push' || inputs.publish)
+        if: steps.jars.outputs.forge_jar != '' && (github.event_name == 'push' || inputs.publish)
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
@@ -114,11 +131,11 @@ jobs:
           dependencies: |
             create(required)
 
-          files: forge/build/libs/!(*-sources).jar
+          files: ${{ steps.jars.outputs.forge_jar }}
 
       # Publish NeoForge
       - name: Publish NeoForge to CurseForge & Modrinth
-        if: steps.loaders.outputs.has_neoforge == 'true' && (github.event_name == 'push' || inputs.publish)
+        if: steps.jars.outputs.neoforge_jar != '' && (github.event_name == 'push' || inputs.publish)
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
@@ -137,11 +154,11 @@ jobs:
           dependencies: |
             create(required)
 
-          files: neoforge/build/libs/!(*-sources).jar
+          files: ${{ steps.jars.outputs.neoforge_jar }}
 
       # Publish Fabric
       - name: Publish Fabric to CurseForge & Modrinth
-        if: steps.loaders.outputs.has_fabric == 'true' && (github.event_name == 'push' || inputs.publish)
+        if: steps.jars.outputs.fabric_jar != '' && (github.event_name == 'push' || inputs.publish)
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
@@ -161,7 +178,7 @@ jobs:
             create(required)
             fabric-api(required)
 
-          files: fabric/build/libs/!(*-sources).jar
+          files: ${{ steps.jars.outputs.fabric_jar }}
 
   release:
     needs: build
