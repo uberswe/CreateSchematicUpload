@@ -271,6 +271,39 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# TEST I: Mixin handler static modifier must match the containing method
+#         SchematicAndQuillHandler.saveSchematic is an instance method, so
+#         the @Redirect handler must also be an instance method (not static)
+# ---------------------------------------------------------------------------
+echo "--- Test I: Handler static modifier matches target method ---"
+CREATE_METHOD_DECL=$(javap -p "$CREATE_CLASS" 2>&1 | grep "saveSchematic")
+MIXIN_HANDLER_DECL=$(javap -p "$MIXIN_CLASS" 2>&1 | grep "onSaveSchematic")
+
+TARGET_IS_STATIC=false
+if echo "$CREATE_METHOD_DECL" | grep -q "static"; then
+    TARGET_IS_STATIC=true
+fi
+
+HANDLER_IS_STATIC=false
+if echo "$MIXIN_HANDLER_DECL" | grep -q "static"; then
+    HANDLER_IS_STATIC=true
+fi
+
+if [ "$TARGET_IS_STATIC" = "$HANDLER_IS_STATIC" ]; then
+    if [ "$TARGET_IS_STATIC" = "true" ]; then
+        pass "Both target and handler are static"
+    else
+        pass "Both target and handler are instance methods"
+    fi
+else
+    if [ "$HANDLER_IS_STATIC" = "true" ]; then
+        fail "Handler is static but target method is instance — will crash with checkTargetModifiers"
+    else
+        fail "Handler is instance but target method is static — will crash with checkTargetModifiers"
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Summary
 # ---------------------------------------------------------------------------
 echo ""
