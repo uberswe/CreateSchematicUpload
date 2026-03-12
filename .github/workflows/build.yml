@@ -30,6 +30,9 @@ jobs:
       - name: Build
         run: ./gradlew build
 
+      - name: Verify JARs
+        run: ./scripts/verify-jars.sh
+
       - name: Find built JARs
         id: jars
         run: |
