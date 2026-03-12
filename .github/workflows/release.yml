@@ -63,6 +63,9 @@ jobs:
           version="${version#v}"
           ./gradlew build -Pmod_version="${version}"
 
+      - name: Verify JARs
+        run: ./scripts/verify-jars.sh
+
       - name: Find built JARs
         id: jars
         run: |
