@@ -26,12 +26,15 @@ jobs:
           - branch: mc/1.18.2
             game-version: '1.18.2'
             java: '17'
+            forge-loaders: forge
           - branch: mc/1.19.2
             game-version: '1.19.2'
             java: '17'
+            forge-loaders: forge
           - branch: mc/1.20.1
             game-version: '1.20.1'
             java: '17'
+            forge-loaders: "forge\nneoforge"
           - branch: mc/1.21.1
             game-version: '1.21.1'
             java: '21'
@@ -104,7 +107,7 @@ jobs:
           changelog: ${{ inputs.changelog || '' }}
 
           game-versions: ${{ matrix.game-version }}
-          loaders: forge
+          loaders: ${{ matrix.forge-loaders }}
           dependencies: |
             create(required)
 
