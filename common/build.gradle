@@ -14,8 +14,6 @@ neoForge {
 
 dependencies {
     compileOnly("org.spongepowered:mixin:0.8.7")
-    compileOnly("io.github.llamalad7:mixinextras-common:0.4.1")
-    annotationProcessor("io.github.llamalad7:mixinextras-common:0.4.1")
 
     compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
         transitive = false
