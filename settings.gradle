@@ -15,4 +15,3 @@ rootProject.name = 'CreateSchematicUpload'
 
 include 'common'
 include 'neoforge'
-include 'fabric'
