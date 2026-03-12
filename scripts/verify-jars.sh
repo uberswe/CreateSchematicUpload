@@ -103,6 +103,16 @@ check_forge() {
         echo "  FAIL: Mixin config not declared in mods.toml"
         ERRORS=$((ERRORS + 1))
     fi
+
+    # Check MANIFEST.MF for MixinConfigs attribute (required for Forge to register mixin configs)
+    local manifest
+    manifest=$(jar_extract "$jar" META-INF/MANIFEST.MF)
+    if echo "$manifest" | grep -q 'MixinConfigs:.*createschematicupload.mixins.json'; then
+        echo "  OK: MixinConfigs manifest attribute present"
+    else
+        echo "  FAIL: MixinConfigs manifest attribute missing — Forge will not load the mixin config"
+        ERRORS=$((ERRORS + 1))
+    fi
 }
 
 check_neoforge() {
