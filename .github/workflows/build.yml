@@ -30,23 +30,47 @@ jobs:
       - name: Build
         run: ./gradlew build
 
+      - name: Find built JARs
+        id: jars
+        run: |
+          find_jar() {
+            local dir="$1"
+            if [ -d "$dir" ]; then
+              local jar
+              jar=$(find "$dir" -maxdepth 1 -name '*.jar' ! -name '*-sources.jar' | head -1)
+              if [ -n "$jar" ]; then
+                echo "$jar"
+                return 0
+              fi
+            fi
+            return 1
+          }
+
+          forge_jar=$(find_jar forge/build/libs) || true
+          neoforge_jar=$(find_jar neoforge/build/libs) || true
+          fabric_jar=$(find_jar fabric/build/libs) || true
+
+          echo "forge_jar=${forge_jar}" >> "$GITHUB_OUTPUT"
+          echo "neoforge_jar=${neoforge_jar}" >> "$GITHUB_OUTPUT"
+          echo "fabric_jar=${fabric_jar}" >> "$GITHUB_OUTPUT"
+
       - name: Upload Forge artifact
-        if: hashFiles('forge/build/libs/*.jar') != ''
+        if: steps.jars.outputs.forge_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: CreateSchematicUpload-Forge
-          path: forge/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.forge_jar }}
 
       - name: Upload NeoForge artifact
-        if: hashFiles('neoforge/build/libs/*.jar') != ''
+        if: steps.jars.outputs.neoforge_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: CreateSchematicUpload-NeoForge
-          path: neoforge/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.neoforge_jar }}
 
       - name: Upload Fabric artifact
-        if: hashFiles('fabric/build/libs/*.jar') != ''
+        if: steps.jars.outputs.fabric_jar != ''
         uses: actions/upload-artifact@v4
         with:
           name: CreateSchematicUpload-Fabric
-          path: fabric/build/libs/!(*-sources).jar
+          path: ${{ steps.jars.outputs.fabric_jar }}
