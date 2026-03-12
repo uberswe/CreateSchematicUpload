@@ -44,6 +44,12 @@ dependencies {
     }
 }
 
+jar {
+    manifest.attributes(
+        'MixinConfigs': 'createschematicupload.mixins.json'
+    )
+}
+
 // Generate mod metadata from templates
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
     var replaceProperties = [
