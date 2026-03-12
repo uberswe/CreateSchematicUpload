@@ -12,14 +12,15 @@ import org.spongepowered.asm.mixin.injection.At;
 
 import java.nio.file.Path;
 
-@Mixin(SchematicAndQuillHandler.class)
+@Mixin(value = SchematicAndQuillHandler.class, remap = false)
 public class SchematicAndQuillHandlerMixin {
 
     @WrapOperation(
             method = "saveSchematic",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/simibubi/create/content/schematics/SchematicExport;saveSchematic(Ljava/nio/file/Path;Ljava/lang/String;ZLnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)Lcom/simibubi/create/content/schematics/SchematicExport$SchematicExportResult;"
+                    target = "Lcom/simibubi/create/content/schematics/SchematicExport;saveSchematic(Ljava/nio/file/Path;Ljava/lang/String;ZLnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;)Lcom/simibubi/create/content/schematics/SchematicExport$SchematicExportResult;",
+                    remap = true
             ),
             remap = false
     )
