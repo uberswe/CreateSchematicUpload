@@ -4,7 +4,7 @@ plugins {
 }
 
 legacyForge {
-    mcpVersion = "1.19.2"
+    mcpVersion = "1.18.2"
 
     parchment {
         mappingsVersion = project.parchment_mappings_version

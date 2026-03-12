@@ -49,7 +49,7 @@ jobs:
           version-type: release
           changelog: ${{ env.RELEASE_CHANGELOG }}
 
-          game-versions: 1.19.2
+          game-versions: 1.18.2
           loaders: forge
           dependencies: |
             create(required)
@@ -70,7 +70,7 @@ jobs:
           version-type: release
           changelog: ${{ env.RELEASE_CHANGELOG }}
 
-          game-versions: 1.19.2
+          game-versions: 1.18.2
           loaders: fabric
           dependencies: |
             create(required)
