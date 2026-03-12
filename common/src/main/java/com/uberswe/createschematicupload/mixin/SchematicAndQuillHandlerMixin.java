@@ -23,7 +23,7 @@ public class SchematicAndQuillHandlerMixin {
             ),
             remap = false
     )
-    private static SchematicExport.SchematicExportResult onSaveSchematic(
+    private SchematicExport.SchematicExportResult onSaveSchematic(
             Path dir, String fileName, boolean overwrite, Level level, BlockPos first, BlockPos second) {
         SchematicExport.SchematicExportResult result = SchematicExport.saveSchematic(dir, fileName, overwrite, level, first, second);
         if (result != null) {
