@@ -1,25 +1,50 @@
 name: Release
 
 on:
-  release:
-    types: [published]
-
-# Note: RELEASE_TAG and RELEASE_CHANGELOG are used only as action input
-# parameters (not in run: commands), so they are safe from injection.
-env:
-  RELEASE_TAG: ${{ github.event.release.tag_name }}
-  RELEASE_CHANGELOG: ${{ github.event.release.body }}
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., v1.1.0)'
+        required: true
+      changelog:
+        description: 'Release notes (optional)'
+        required: false
+        default: ''
+      publish:
+        description: 'Publish to CurseForge & Modrinth'
+        type: boolean
+        default: false
+  push:
+    tags: ['v*']
 
 jobs:
-  build-and-publish:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - branch: mc/1.18.2
+            game-version: '1.18.2'
+            java: '17'
+          - branch: mc/1.19.2
+            game-version: '1.19.2'
+            java: '17'
+          - branch: mc/1.20.1
+            game-version: '1.20.1'
+            java: '17'
+          - branch: mc/1.21.1
+            game-version: '1.21.1'
+            java: '21'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.branch }}
 
-      - name: Set up JDK 21
+      - name: Set up JDK ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
-          java-version: '21'
+          java-version: ${{ matrix.java }}
           distribution: 'temurin'
 
       - name: Setup Gradle
@@ -28,15 +53,43 @@ jobs:
       - name: Build
         run: ./gradlew build
 
-      - name: Upload artifacts to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            forge/build/libs/!(*-sources).jar
-            neoforge/build/libs/!(*-sources).jar
-            fabric/build/libs/!(*-sources).jar
+      - name: Detect loaders
+        id: loaders
+        run: |
+          has_forge=false
+          has_neoforge=false
+          has_fabric=false
+          [[ -d forge/build/libs ]] && ls forge/build/libs/*.jar &>/dev/null && has_forge=true
+          [[ -d neoforge/build/libs ]] && ls neoforge/build/libs/*.jar &>/dev/null && has_neoforge=true
+          [[ -d fabric/build/libs ]] && ls fabric/build/libs/*.jar &>/dev/null && has_fabric=true
+          echo "has_forge=${has_forge}" >> "$GITHUB_OUTPUT"
+          echo "has_neoforge=${has_neoforge}" >> "$GITHUB_OUTPUT"
+          echo "has_fabric=${has_fabric}" >> "$GITHUB_OUTPUT"
 
-      - name: Publish NeoForge to CurseForge and Modrinth
+      - name: Upload Forge JAR
+        if: steps.loaders.outputs.has_forge == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: forge-${{ matrix.game-version }}
+          path: forge/build/libs/!(*-sources).jar
+
+      - name: Upload NeoForge JAR
+        if: steps.loaders.outputs.has_neoforge == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: neoforge-${{ matrix.game-version }}
+          path: neoforge/build/libs/!(*-sources).jar
+
+      - name: Upload Fabric JAR
+        if: steps.loaders.outputs.has_fabric == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fabric-${{ matrix.game-version }}
+          path: fabric/build/libs/!(*-sources).jar
+
+      # Publish Forge
+      - name: Publish Forge to CurseForge & Modrinth
+        if: steps.loaders.outputs.has_forge == 'true' && (github.event_name == 'push' || inputs.publish)
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
@@ -45,19 +98,44 @@ jobs:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          name: CreateSchematicUpload ${{ env.RELEASE_TAG }} (NeoForge)
-          version: ${{ env.RELEASE_TAG }}+neoforge
+          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (Forge ${{ matrix.game-version }})
+          version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-forge
           version-type: release
-          changelog: ${{ env.RELEASE_CHANGELOG }}
+          changelog: ${{ inputs.changelog || '' }}
 
-          game-versions: 1.21.1
+          game-versions: ${{ matrix.game-version }}
+          loaders: forge
+          dependencies: |
+            create(required)
+
+          files: forge/build/libs/!(*-sources).jar
+
+      # Publish NeoForge
+      - name: Publish NeoForge to CurseForge & Modrinth
+        if: steps.loaders.outputs.has_neoforge == 'true' && (github.event_name == 'push' || inputs.publish)
+        uses: Kir-Antipov/mc-publish@v3.3
+        with:
+          curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
+          curseforge-token: ${{ secrets.CURSEFORGE_TOKEN }}
+
+          modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
+          modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
+
+          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (NeoForge ${{ matrix.game-version }})
+          version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-neoforge
+          version-type: release
+          changelog: ${{ inputs.changelog || '' }}
+
+          game-versions: ${{ matrix.game-version }}
           loaders: neoforge
           dependencies: |
             create(required)
 
           files: neoforge/build/libs/!(*-sources).jar
 
-      - name: Publish Fabric to CurseForge and Modrinth
+      # Publish Fabric
+      - name: Publish Fabric to CurseForge & Modrinth
+        if: steps.loaders.outputs.has_fabric == 'true' && (github.event_name == 'push' || inputs.publish)
         uses: Kir-Antipov/mc-publish@v3.3
         with:
           curseforge-id: ${{ vars.CURSEFORGE_PROJECT_ID }}
@@ -66,15 +144,33 @@ jobs:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          name: CreateSchematicUpload ${{ env.RELEASE_TAG }} (Fabric)
-          version: ${{ env.RELEASE_TAG }}+fabric
+          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (Fabric ${{ matrix.game-version }})
+          version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-fabric
           version-type: release
-          changelog: ${{ env.RELEASE_CHANGELOG }}
+          changelog: ${{ inputs.changelog || '' }}
 
-          game-versions: 1.21.1
+          game-versions: ${{ matrix.game-version }}
           loaders: fabric
           dependencies: |
             create(required)
             fabric-api(required)
 
           files: fabric/build/libs/!(*-sources).jar
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.version || github.ref_name }}
+          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }}
+          body: ${{ inputs.changelog || '' }}
+          generate_release_notes: true
+          files: artifacts/**/*.jar
