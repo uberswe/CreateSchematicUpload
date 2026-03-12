@@ -42,8 +42,6 @@ dependencies {
     compileOnly("maven.modrinth:create:${minecraft_version}-${create_version}") {
         transitive = false
     }
-    compileOnly("io.github.llamalad7:mixinextras-common:0.3.5")
-    annotationProcessor("io.github.llamalad7:mixinextras-common:0.3.5")
 }
 
 // Generate mod metadata from templates
