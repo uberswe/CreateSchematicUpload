@@ -26,9 +26,9 @@ public class SchematicUploadHandler {
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
     public static void onSchematicSaved(Path filePath) {
-        if (!Config.ENABLED.get()) return;
+        if (!ConfigValues.enabled) return;
 
-        if (Config.AUTO_UPLOAD.get()) {
+        if (ConfigValues.autoUpload) {
             uploadAsync(filePath);
         } else {
             Minecraft mc = Minecraft.getInstance();
@@ -69,7 +69,7 @@ public class SchematicUploadHandler {
         String boundary = "----SchematicUpload" + System.currentTimeMillis();
         byte[] body = buildMultipartBody(boundary, fileName, fileBytes);
 
-        String baseUrl = Config.BASE_URL.get();
+        String baseUrl = ConfigValues.baseUrl;
 
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()

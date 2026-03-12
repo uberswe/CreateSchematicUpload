@@ -14,8 +14,6 @@
   <a href="https://github.com/uberswe/CreateSchematicUpload/releases/latest"><img src="https://img.shields.io/github/v/release/uberswe/CreateSchematicUpload?include_prereleases&sort=semver&logo=github" alt="GitHub Release"></a>
   <a href="https://modrinth.com/mod/create-schematic-upload"><img src="https://img.shields.io/modrinth/dt/vDsPXWBh?logo=modrinth&label=Modrinth" alt="Modrinth Downloads"></a>
   <a href="https://www.curseforge.com/projects/1483578"><img src="https://img.shields.io/curseforge/dt/1483578?logo=curseforge&label=CurseForge" alt="CurseForge Downloads"></a>
-  <img src="https://img.shields.io/badge/Minecraft-1.21.1-62B47A?logo=minecraft" alt="Minecraft 1.21.1">
-  <img src="https://img.shields.io/badge/NeoForge-21.1-orange?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAOCAYAAAAfSC3RAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABHSURBVDhPYxgFgwAwQmkMwCRQ0f8Bpv///88AxFgBSCMTlEYGWDUiA2SNyACnRmSAohEZ4NWIDMg2YtMEF0PWBKUBA4PBAACwBSE34GZTQQAAAABJRU5ErkJggg==" alt="NeoForge">
   <a href="https://github.com/uberswe/CreateSchematicUpload/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-All%20Rights%20Reserved-blue" alt="License"></a>
 </p>
 
@@ -33,24 +31,27 @@
 
 This is a **client-side only** mod. It does not need to be installed on the server.
 
-## Requirements
+## Supported Versions
 
-| Dependency | Version |
-|---|---|
-| Minecraft | 1.21.1 |
-| NeoForge | 21.1+ |
-| Create | 6.0+ |
+| Branch | Minecraft | Loaders | Create | Java |
+|--------|-----------|---------|--------|------|
+| `main` / `mc/1.21.1` | 1.21.1 | NeoForge, Fabric | 6.0.10+ | 21 |
+| `mc/1.20.1` | 1.20.1 | Forge, NeoForge, Fabric | 6.0.8+ | 17 |
+| `mc/1.19.2` | 1.19.2 | Forge, Fabric | 0.5.1+ | 17 |
+| `mc/1.18.2` | 1.18.2 | Forge, Fabric | 0.5.1+ | 17 |
 
 ## Installation
 
-1. Install [NeoForge](https://neoforged.net/) for Minecraft 1.21.1
+1. Install the mod loader for your Minecraft version (NeoForge, Forge, or Fabric)
 2. Install the [Create](https://modrinth.com/mod/create) mod
-3. Drop the CreateSchematicUpload `.jar` into your `mods/` folder
-4. Launch the game
+3. For Fabric: install [Fabric API](https://modrinth.com/mod/fabric-api)
+4. Drop the CreateSchematicUpload `.jar` for your loader into your `mods/` folder
+5. Launch the game
 
 ## Configuration
 
-The config file is located at `config/createschematicupload-client.toml`:
+**NeoForge / Forge:** `config/createschematicupload-client.toml`
+**Fabric:** `config/createschematicupload.json`
 
 | Option | Default | Description |
 |---|---|---|
@@ -74,7 +75,19 @@ cd CreateSchematicUpload
 ./gradlew build
 ```
 
-The built jar will be in `build/libs/`.
+JARs are produced per loader:
+- `neoforge/build/libs/` - NeoForge JAR
+- `fabric/build/libs/` - Fabric JAR
+
+## Project Structure
+
+This is a multi-loader project following the [MultiLoader-Template](https://github.com/jaredlll08/MultiLoader-Template) pattern:
+
+```
+common/    - Shared code (config, upload handler, mixin, GUI)
+neoforge/  - NeoForge entry point and config
+fabric/    - Fabric entry point and config
+```
 
 ## Modpacks
 

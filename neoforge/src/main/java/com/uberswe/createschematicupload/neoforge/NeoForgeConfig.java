@@ -1,8 +1,8 @@
-package com.uberswe.createschematicupload;
+package com.uberswe.createschematicupload.neoforge;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
 
-public class Config {
+public class NeoForgeConfig {
     private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
 
     public static final ModConfigSpec.BooleanValue ENABLED = BUILDER

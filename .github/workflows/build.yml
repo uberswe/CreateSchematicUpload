@@ -2,9 +2,9 @@ name: Build
 
 on:
   push:
-    branches: [main]
+    branches: [main, mc/*]
   pull_request:
-    branches: [main]
+    branches: [main, mc/*]
 
 jobs:
   build:
@@ -24,8 +24,23 @@ jobs:
       - name: Build
         run: ./gradlew build
 
-      - name: Upload artifact
+      - name: Upload Forge artifact
         uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('forge/build/libs/*.jar') != '' }}
         with:
-          name: CreateSchematicUpload
-          path: build/libs/*.jar
+          name: CreateSchematicUpload-Forge
+          path: forge/build/libs/!(*-sources).jar
+
+      - name: Upload NeoForge artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('neoforge/build/libs/*.jar') != '' }}
+        with:
+          name: CreateSchematicUpload-NeoForge
+          path: neoforge/build/libs/!(*-sources).jar
+
+      - name: Upload Fabric artifact
+        uses: actions/upload-artifact@v4
+        if: ${{ hashFiles('fabric/build/libs/*.jar') != '' }}
+        with:
+          name: CreateSchematicUpload-Fabric
+          path: fabric/build/libs/!(*-sources).jar
