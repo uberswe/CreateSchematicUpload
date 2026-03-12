@@ -57,7 +57,11 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build
-        run: ./gradlew build
+        run: |
+          # Strip leading 'v' from version tag for Gradle
+          version="${{ inputs.version || github.ref_name }}"
+          version="${version#v}"
+          ./gradlew build -Pmod_version="${version}"
 
       - name: Find built JARs
         id: jars
