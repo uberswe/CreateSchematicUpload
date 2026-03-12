@@ -1,0 +1,14 @@
+plugins {
+    id 'groovy-gradle-plugin'
+}
+
+repositories {
+    gradlePluginPortal()
+    maven { url = 'https://maven.neoforged.net/releases' }
+    maven { url = 'https://maven.fabricmc.net/' }
+}
+
+dependencies {
+    implementation "net.neoforged:moddev-gradle:${neoforge_moddev_version}"
+    implementation "fabric-loom:fabric-loom.gradle.plugin:${fabric_loom_version}"
+}

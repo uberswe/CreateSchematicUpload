@@ -1,0 +1,75 @@
+plugins {
+    id 'java-library'
+}
+
+version = project.mod_version
+group = project.mod_group_id
+
+base {
+    archivesName = "${project.mod_id}-common"
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    mavenLocal()
+    mavenCentral()
+    maven {
+        name = "Sponge"
+        url = "https://repo.spongepowered.org/repository/maven-public/"
+    }
+    maven {
+        name = "ParchmentMC"
+        url = "https://maven.parchmentmc.org"
+    }
+    maven {
+        name = "NeoForge"
+        url = "https://maven.neoforged.net/releases"
+    }
+    maven {
+        name = "Create Maven"
+        url = "https://maven.createmod.net"
+    }
+    maven {
+        name = "Flywheel Maven"
+        url = "https://maven.ithundxr.dev/snapshots"
+    }
+    maven {
+        name = "BlameJared Maven"
+        url = "https://maven.blamejared.com"
+    }
+}
+
+// Expose source directories to loader subprojects
+configurations {
+    commonJava {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+    commonResources {
+        canBeResolved = false
+        canBeConsumed = true
+    }
+}
+
+artifacts {
+    commonJava(sourceSets.main.java.sourceDirectories.singleFile)
+    commonResources(sourceSets.main.resources.sourceDirectories.first())
+}
+
+// Resource processing for template variables
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+        minecraft_version: project.minecraft_version,
+        mod_id: project.mod_id,
+        mod_name: project.mod_name,
+        mod_version: project.mod_version,
+        mod_license: project.mod_license,
+        mod_authors: project.mod_authors,
+        mod_description: project.mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching(['pack.mcmeta', 'fabric.mod.json', '*.mixins.json']) {
+        expand replaceProperties
+    }
+}

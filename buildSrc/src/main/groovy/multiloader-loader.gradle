@@ -1,0 +1,46 @@
+plugins {
+    id 'multiloader-common'
+}
+
+// Pull common source and resources from the :common project
+configurations {
+    commonJava {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+    commonResources {
+        canBeResolved = true
+        canBeConsumed = false
+    }
+}
+
+dependencies {
+    compileOnly project(':common')
+    commonJava project(path: ':common', configuration: 'commonJava')
+    commonResources project(path: ':common', configuration: 'commonResources')
+}
+
+// Include common sources in compilation
+tasks.named('compileJava', JavaCompile).configure {
+    dependsOn configurations.commonJava
+    source(configurations.commonJava)
+}
+
+// Include common resources in processing
+tasks.named('processResources', ProcessResources).configure {
+    dependsOn configurations.commonResources
+    from(configurations.commonResources)
+}
+
+// Include common in javadoc
+tasks.named('javadoc', Javadoc).configure {
+    source(configurations.commonJava)
+}
+
+// Include common in sources jar if it exists
+tasks.configureEach { task ->
+    if (task.name == 'sourcesJar' && task instanceof Jar) {
+        task.from(configurations.commonJava)
+        task.from(configurations.commonResources)
+    }
+}
