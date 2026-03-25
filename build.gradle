@@ -1,31 +1,7 @@
 plugins {
     id "architectury-plugin" version "3.4-SNAPSHOT"
-    id "dev.architectury.loom" version "1.9-SNAPSHOT" apply false
-    {{#if unified_publishing}}
-    id "me.shedaniel.unified-publishing" version "0.1.+" apply false
-    {{/if}}
-    {{#if github_publish}}
-    id "com.github.breadmoirai.github-release" version "2.4.1"
-    {{/if}}
+    id "dev.architectury.loom" version "1.13-SNAPSHOT" apply false
 }
-{{#if github_publish}}
-
-if (System.getenv("GITHUB_TOKEN") != null) {
-    githubRelease {
-        token(System.getenv("GITHUB_TOKEN"))
-        owner("{{ github_owner }}")
-        repo("{{ github_repo }}")
-        tagName("${project.version}")
-        releaseName("V${project.version}")
-        body(project.rootProject.file("CHANGELOG.md").text)
-        draft(false)
-
-        if (project.branch != null) {
-            targetCommitish(project.branch)
-        }
-    }
-}
-{{/if}}
 
 subprojects {
     apply plugin: "dev.architectury.loom"
@@ -47,7 +23,6 @@ subprojects {
                     'Implementation-Version'  : project.jar.archiveVersion,
                     'Built-On-Java'           : "${System.getProperty('java.vm.version')} (${System.getProperty('java.vm.vendor')})",
                     'Built-On-Minecraft'      : minecraft_version,
-                    'JamLib-File-Name'        : "{{mod_id}}-${project.base.archivesName.get()}-${rootProject.version}.jar",
             ])
         }
     }
@@ -64,7 +39,6 @@ subprojects {
 allprojects {
     apply plugin: "java"
     apply plugin: "architectury-plugin"
-    apply plugin: "maven-publish"
 
     version = rootProject.version
     group = rootProject.group
@@ -73,23 +47,53 @@ allprojects {
         mavenCentral()
 
         maven {
+            name = "ParchmentMC"
+            url = "https://maven.parchmentmc.org"
+        }
+
+        maven {
             name = "Modrinth"
             url = "https://api.modrinth.com/maven"
         }
 
         maven {
-            name = "Jamalam's Maven"
-            url = "https://maven.jamalam.tech/releases"
+            name = "Create Maven"
+            url = "https://maven.createmod.net"
         }
 
         maven {
-            name = "ParchmentMC"
-            url = "https://maven.parchmentmc.org"
+            name = "Flywheel Maven"
+            url = "https://maven.ithundxr.dev/snapshots"
+        }
+
+        maven {
+            name = "BlameJared Maven"
+            url = "https://maven.blamejared.com"
+        }
+
+        maven {
+            name = "SquidDev Maven"
+            url = "https://maven.squiddev.cc"
+        }
+
+        maven {
+            name = "TheIllusiveC4 Maven"
+            url = "https://maven.theillusivec4.top/"
+        }
+
+        maven {
+            name = "FTB"
+            url = "https://maven.ftb.dev/releases/"
+        }
+
+        maven {
+            name = "Journey Map"
+            url = "https://jm.gserv.me/repository/maven-public"
         }
     }
 
     base {
-        archivesName = "{{mod_id}}"
+        archivesName = "createschematicdownload"
     }
 
     tasks.withType(JavaCompile) {
@@ -102,16 +106,4 @@ allprojects {
     java {
         withSourcesJar()
     }
-    {{#ifCond github_publish '||' unified_publishing}}
-
-    tasks.publish {
-        {{#if github_publish}}
-        dependsOn(":githubRelease")
-        {{/if}}
-        {{#if unified_publishing}}
-        dependsOn("fabric:publishUnified")
-        dependsOn("neoforge:publishUnified")
-        {{/if}}
-    }
-    {{/ifCond}}
 }

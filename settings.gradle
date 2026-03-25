@@ -27,7 +27,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "{{ mod_id }}"
+rootProject.name = "createschematicdownload"
 include("common")
-include("fabric")
+//include("fabric")
 include("neoforge")

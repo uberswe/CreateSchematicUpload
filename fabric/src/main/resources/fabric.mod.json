@@ -1,32 +1,28 @@
 {
     "schemaVersion": 1,
-    "id": "{{ mod_id }}",
+    "id": "createschematicdownload",
     "version": "${version}",
-    "name": "{{ name }}",
-    "description": "{{ description }}",
+    "name": "CreateSchematicDownload",
+    "description": "Adds an option in the schematic table to download a schematic from createmod.com",
     "authors": [
-        "{{ author }}"
+        "Jamalam"
     ],
     "contact": {
-        "homepage": "https://github.com/{{github_owner}}/{{github_repo}}",
-        "sources": "https://github.com/{{github_owner}}/{{github_repo}}",
-        "issues": "https://github.com/{{github_owner}}/{{github_repo}}/issues"
+        "homepage": "https://github.com/uberswe/CreateSchematicDownload",
+        "sources": "https://github.com/uberswe/CreateSchematicDownload",
+        "issues": "https://github.com/uberswe/CreateSchematicDownload/issues"
     },
     "license": "MIT",
-    "icon": "assets/{{mod_id}}/icon.png",
+    "icon": "assets/createschematicdownload/icon.png",
     "environment": "*",
     "entrypoints": {
         "main": [
-            "{{group}}.{{mod_id}}.fabric.{{main_class}}Fabric"
+            "com.uberswe.createschematicdownload.createschematicdownload.fabric.CreateSchematicDownloadFabric"
         ]
     },
     "mixins": [
-        "{{mod_id}}.mixins.json"
     ],
     "depends": {
-        "fabric": ">=${fabric_api_version}",
-        "minecraft": ">=${minecraft_version}",
-        "architectury": ">=${architectury_version}",
-        "jamlib": ">=${jamlib_version}"
+        "minecraft": ">=${minecraft_version}"
     }
 }

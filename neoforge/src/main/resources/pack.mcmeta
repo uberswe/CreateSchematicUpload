@@ -1,6 +1,6 @@
 {
     "pack": {
-        "description": "{{ name }}",
+        "description": "CreateSchematicDownload",
         "pack_format": 15
     }
 }

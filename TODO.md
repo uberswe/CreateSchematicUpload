@@ -1,0 +1,6 @@
+- [ ] Abort write if scehmatic fails to download
+- [ ] Is a config required?
+- [ ] Is there an alternative to mixing into SchematicTableMenu?
+- [ ] Check compatibility with Create 0.5
+- [ ] Add Create dependency
+- [ ] Ensure the mod works client-side only
