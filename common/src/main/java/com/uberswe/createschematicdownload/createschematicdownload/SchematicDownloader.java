@@ -48,7 +48,6 @@ public class SchematicDownloader {
         Minecraft minecraft = Minecraft.getInstance();
         long timestamp = System.currentTimeMillis() / 1000;
 
-        // TODO: make base URL configurable if requested
         try (HttpClient client = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create("https://createmod.com/api/mod/download"))

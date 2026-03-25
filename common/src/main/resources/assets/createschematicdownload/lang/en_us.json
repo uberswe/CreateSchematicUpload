@@ -1,0 +1,5 @@
+{
+  "text.createschematicdownload.url_field_hint": "Enter a CreateMod.com URL",
+  "text.createschematicdownload.download_schematic": "Download a schematic from CreateMod.com",
+  "text.createschematicdownload.choose_local_schematic": "Choose a local schematic"
+}
