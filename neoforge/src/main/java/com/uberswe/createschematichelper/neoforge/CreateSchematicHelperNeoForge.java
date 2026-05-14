@@ -37,5 +37,8 @@ public class CreateSchematicHelperNeoForge {
         ConfigValues.enabled = NeoForgeConfig.ENABLED.get();
         ConfigValues.autoUpload = NeoForgeConfig.AUTO_UPLOAD.get();
         ConfigValues.baseUrl = NeoForgeConfig.BASE_URL.get();
+        ConfigValues.saveFeaturedFrames = NeoForgeConfig.SAVE_FEATURED_FRAMES.get();
+        ConfigValues.saveAllFrames = NeoForgeConfig.SAVE_ALL_FRAMES.get();
+        ConfigValues.imageFormat = NeoForgeConfig.IMAGE_FORMAT.get();
     }
 }

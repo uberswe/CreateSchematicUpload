@@ -22,16 +22,16 @@
 ## Features
 
 ### Upload
-- **Automatic upload** &mdash; schematics are uploaded to [createmod.com](https://createmod.com) the moment you save them in-game
-- **360&deg; preview rendering** &mdash; 120 isometric frames are rendered client-side and uploaded alongside the schematic for an interactive 3D rotation view on the website
-- **One-click sharing** &mdash; a clickable link appears in chat so you (or anyone) can view the schematic in a browser
-- **Claim flow** &mdash; log in on the website to claim ownership, then publish to the community
-- **Optional confirmation** &mdash; disable auto-upload in the config to get a confirmation screen before each upload
-- **No account needed in-game** &mdash; uploads are anonymous; you claim them on the website when you're ready
+- **Automatic upload** - schematics are uploaded to [createmod.com](https://createmod.com) the moment you save them in-game
+- **360° preview rendering** - 120 isometric frames are rendered client-side and uploaded alongside the schematic for an interactive 3D rotation view on the website
+- **One-click sharing** - a clickable link appears in chat so you (or anyone) can view the schematic in a browser
+- **Claim flow** - log in on the website to claim ownership, then publish to the community
+- **Optional confirmation** - disable auto-upload in the config to get a confirmation screen before each upload
+- **No account needed in-game** - uploads are anonymous; you claim them on the website when you're ready
 
 ### Download
-- **Download from createmod.com** &mdash; enter a createmod.com URL directly in the Create Schematic Table to download schematics shared by other players
-- **Seamless integration** &mdash; downloaded schematics are placed into your local schematics folder and ready to use immediately
+- **Download from createmod.com** - enter a createmod.com URL or short code directly in the Create Schematic Table to download schematics shared by other players
+- **Seamless integration** - downloaded schematics are placed into your local schematics folder and ready to use immediately
 
 ## Side
 
@@ -64,6 +64,9 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | `enabled` | `true` | Enable or disable the upload feature entirely |
 | `autoUpload` | `true` | Upload automatically on save (if `false`, a confirmation screen is shown) |
 | `baseUrl` | `https://createmod.com` | API base URL |
+| `saveFeaturedFrames` | `false` | Save the 4 featured perspective images locally to the schematics folder |
+| `saveAllFrames` | `false` | Save all 120 rotation frames locally to the schematics folder |
+| `imageFormat` | `jpeg` | Image format for rendered frames: `jpeg` (smaller files, recommended) or `png` (lossless) |
 
 ## How It Works
 
@@ -78,7 +81,7 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 ### Downloading
 1. Open the Create Schematic Table
 2. Toggle to URL download mode
-3. Paste a createmod.com schematic URL
+3. Paste a createmod.com schematic URL or short code
 4. The schematic is downloaded and saved to your local schematics folder
 
 ## Building from Source
@@ -105,8 +108,8 @@ fabric/    - Fabric entry point and config
 
 ## Credits
 
-- [Jamalam](https://github.com/JamCoreModding) &mdash; original CreateSchematicDownload mod
-- [salem-5/Create-Blueprinted](https://github.com/salem-5/Create-Blueprinted) &mdash; isometric rendering approach
+- [Jamalam](https://github.com/JamCoreModding) - original CreateSchematicDownload mod
+- [salem-5/Create-Blueprinted](https://github.com/salem-5/Create-Blueprinted) - isometric rendering approach
 
 ## Modpacks
 

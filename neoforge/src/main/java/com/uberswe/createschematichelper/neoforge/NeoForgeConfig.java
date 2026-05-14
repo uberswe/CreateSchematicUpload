@@ -17,5 +17,17 @@ public class NeoForgeConfig {
             .comment("Base URL for the createmod.com API")
             .define("baseUrl", "https://createmod.com");
 
+    public static final ModConfigSpec.BooleanValue SAVE_FEATURED_FRAMES = BUILDER
+            .comment("Save the 4 featured perspective images locally to the schematics folder")
+            .define("saveFeaturedFrames", false);
+
+    public static final ModConfigSpec.BooleanValue SAVE_ALL_FRAMES = BUILDER
+            .comment("Save all 120 rotation frames locally to the schematics folder")
+            .define("saveAllFrames", false);
+
+    public static final ModConfigSpec.ConfigValue<String> IMAGE_FORMAT = BUILDER
+            .comment("Image format for rendered frames: 'jpeg' (smaller files, recommended) or 'png' (lossless)")
+            .define("imageFormat", "jpeg", o -> o instanceof String s && (s.equals("jpeg") || s.equals("png")));
+
     static final ModConfigSpec SPEC = BUILDER.build();
 }

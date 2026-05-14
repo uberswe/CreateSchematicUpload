@@ -50,6 +50,7 @@ public class SchematicUploadHandler {
         SchematicIsometricRenderer.render360(filePath)
                 .thenAcceptAsync(frames -> {
                     try {
+                        saveFramesLocally(filePath, frames);
                         sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                                 .withStyle(ChatFormatting.GRAY));
                         upload(filePath, frames);
@@ -134,11 +135,6 @@ public class SchematicUploadHandler {
                                 .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url)));
 
                 sendChatMessage(prefix.append(link));
-
-                if (imageCount > 0) {
-                    sendChatMessage(Component.translatable("createschematichelper.upload.images_included", imageCount)
-                            .withStyle(ChatFormatting.GRAY));
-                }
             } else if (status == 409) {
                 sendChatMessage(Component.translatable("createschematichelper.upload.already_exists")
                         .withStyle(ChatFormatting.YELLOW));
@@ -170,7 +166,7 @@ public class SchematicUploadHandler {
             if (frame.featured()) {
                 baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
                 baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(("Content-Type: image/png" + crlf).getBytes(StandardCharsets.UTF_8));
+                baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
                 baos.write(crlf.getBytes(StandardCharsets.UTF_8));
                 baos.write(frame.data());
                 baos.write(crlf.getBytes(StandardCharsets.UTF_8));
@@ -178,7 +174,7 @@ public class SchematicUploadHandler {
 
             baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(("Content-Disposition: form-data; name=\"rotation_images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Type: image/png" + crlf).getBytes(StandardCharsets.UTF_8));
+            baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(crlf.getBytes(StandardCharsets.UTF_8));
             baos.write(frame.data());
             baos.write(crlf.getBytes(StandardCharsets.UTF_8));
@@ -187,6 +183,25 @@ public class SchematicUploadHandler {
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
 
         return baos.toByteArray();
+    }
+
+    private static void saveFramesLocally(Path schematicPath, List<RenderedFrame> frames) {
+        if (!ConfigValues.saveFeaturedFrames && !ConfigValues.saveAllFrames) return;
+
+        try {
+            String baseName = schematicPath.getFileName().toString().replaceFirst("\\.nbt$", "");
+            Path dir = schematicPath.getParent().resolve(baseName + "_renders");
+            Files.createDirectories(dir);
+
+            for (RenderedFrame frame : frames) {
+                if (ConfigValues.saveAllFrames || (ConfigValues.saveFeaturedFrames && frame.featured())) {
+                    Files.write(dir.resolve(frame.filename()), frame.data());
+                }
+            }
+            LOGGER.info("Saved rendered frames to {}", dir);
+        } catch (Exception e) {
+            LOGGER.error("Failed to save frames locally", e);
+        }
     }
 
     static void sendChatMessage(Component message) {

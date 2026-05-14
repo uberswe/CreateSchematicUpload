@@ -37,6 +37,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     @Unique
     private static final Component createschematichelper$URL_FIELD_HINT = Component.translatable("text.createschematichelper.url_field_hint");
     @Unique
+    private static final Component createschematichelper$PROCESSING_TITLE = Component.translatable("text.createschematichelper.processing");
+    @Unique
     private static final Component createschematichelper$DOWNLOAD_TOOLTIP = Component.translatable("text.createschematichelper.download_schematic");
     @Unique
     private static final Component createschematichelper$LOCAL_TOOLTIP = Component.translatable("text.createschematichelper.choose_local_schematic");
@@ -163,6 +165,20 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         } else {
             return 0;
         }
+    }
+
+    @WrapOperation(
+            method = "renderBg",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)I"
+            )
+    )
+    private int createschematichelper$patchTitle(GuiGraphics instance, Font font, Component text, int x, int y, int color, boolean shadow, Operation<Integer> original) {
+        if (this.createschematichelper$urlField.isVisible()) {
+            return original.call(instance, font, createschematichelper$PROCESSING_TITLE, x, y, color, shadow);
+        }
+        return original.call(instance, font, text, x, y, color, shadow);
     }
 
     @WrapOperation(

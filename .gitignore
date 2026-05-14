@@ -2,6 +2,9 @@
 .idea/
 .vscode/
 
+# Example/scratch files
+SchematicDownloadExample.java
+
 *.iml
 *.ipr
 *.iws
