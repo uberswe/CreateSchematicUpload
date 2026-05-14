@@ -42,7 +42,7 @@ dependencies {
     compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
         transitive = false
     }
-    compileOnly("net.createmod.catnip:Catnip-NeoForge-1.21.1:0.8.54")
+    compileOnly("net.createmod.ponder:ponder-neoforge:1.0.81+mc${minecraft_version}")
 }
 
 // Generate mod metadata from templates

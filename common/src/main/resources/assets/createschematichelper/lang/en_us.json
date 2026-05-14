@@ -1,10 +1,12 @@
 {
+  "createschematichelper.upload.rendering": "Rendering schematic previews...",
   "createschematichelper.upload.success": "Schematic uploaded! View at: ",
   "createschematichelper.upload.uploading": "Uploading schematic to createmod.com...",
   "createschematichelper.upload.error": "Upload failed: %s",
   "createschematichelper.upload.failed": "Schematic could not be automatically uploaded",
   "createschematichelper.upload.already_exists": "This schematic has already been uploaded",
   "createschematichelper.upload.too_large": "Schematic is too large (max 10MB)",
+  "createschematichelper.upload.images_included": "Included %d preview images",
   "createschematichelper.confirm.title": "Upload Schematic?",
   "createschematichelper.confirm.message": "Upload \"%s\" to createmod.com?",
   "createschematichelper.confirm.upload": "Upload",

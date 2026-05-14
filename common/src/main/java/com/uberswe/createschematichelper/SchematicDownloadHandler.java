@@ -28,7 +28,7 @@ import java.util.HexFormat;
 
 public class SchematicDownloadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
-    private static final String SHARED_SECRET = "5a0841453e5c2588583da1fb215f4af88a5a7d4ee86a720aea4ae27c4065dace";
+    static final String SHARED_SECRET = "5a0841453e5c2588583da1fb215f4af88a5a7d4ee86a720aea4ae27c4065dace";
 
     @Nullable
     public static String downloadSchematic(String slugOrUrl) {
@@ -116,7 +116,7 @@ public class SchematicDownloadHandler {
         return fileName;
     }
 
-    private static String hmacSha256(String message) throws InvalidKeyException, NoSuchAlgorithmException {
+    static String hmacSha256(String message) throws InvalidKeyException, NoSuchAlgorithmException {
         Mac mac = Mac.getInstance("HmacSHA256");
         mac.init(new SecretKeySpec(SHARED_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));

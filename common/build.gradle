@@ -18,4 +18,5 @@ dependencies {
     compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
         transitive = false
     }
+    compileOnly("net.createmod.ponder:ponder-neoforge:1.0.81+mc${minecraft_version}")
 }
