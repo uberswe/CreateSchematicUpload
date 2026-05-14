@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="docs/logo_transparent.png" alt="CreateSchematicUpload" width="300">
+  <img src="docs/logo_transparent.png" alt="CreateSchematicHelper" width="300">
 </p>
 
-<h1 align="center">CreateSchematicUpload</h1>
+<h1 align="center">CreateSchematicHelper</h1>
 
 <p align="center">
-  A Minecraft mod that automatically uploads Create mod schematics to
-  <a href="https://createmod.com">createmod.com</a> for easy sharing.
+  A Minecraft mod for uploading and downloading <a href="https://modrinth.com/mod/create">Create</a> mod schematics
+  via <a href="https://createmod.com">createmod.com</a>.
 </p>
 
 <p align="center">
@@ -21,11 +21,17 @@
 
 ## Features
 
+### Upload
 - **Automatic upload** &mdash; schematics are uploaded to [createmod.com](https://createmod.com) the moment you save them in-game
+- **360&deg; preview rendering** &mdash; 120 isometric frames are rendered client-side and uploaded alongside the schematic for an interactive 3D rotation view on the website
 - **One-click sharing** &mdash; a clickable link appears in chat so you (or anyone) can view the schematic in a browser
 - **Claim flow** &mdash; log in on the website to claim ownership, then publish to the community
 - **Optional confirmation** &mdash; disable auto-upload in the config to get a confirmation screen before each upload
 - **No account needed in-game** &mdash; uploads are anonymous; you claim them on the website when you're ready
+
+### Download
+- **Download from createmod.com** &mdash; enter a createmod.com URL directly in the Create Schematic Table to download schematics shared by other players
+- **Seamless integration** &mdash; downloaded schematics are placed into your local schematics folder and ready to use immediately
 
 ## Side
 
@@ -35,23 +41,18 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 
 | Branch | Minecraft | Loaders | Create | Java |
 |--------|-----------|---------|--------|------|
-| `main` / `mc/1.21.1` | 1.21.1 | NeoForge, Fabric | 6.0.10+ | 21 |
-| `mc/1.20.1` | 1.20.1 | Forge, NeoForge, Fabric | 6.0.8+ | 17 |
-| `mc/1.19.2` | 1.19.2 | Forge, Fabric | 0.5.1+ | 17 |
-| `mc/1.18.2` | 1.18.2 | Forge, Fabric | 0.5.1+ | 17 |
+| `main` / `mc/1.21.1` | 1.21.1 | NeoForge | 6.0.10+ | 21 |
 
 ## Installation
 
-1. Install the mod loader for your Minecraft version (NeoForge, Forge, or Fabric)
+1. Install [NeoForge](https://neoforged.net/) for Minecraft 1.21.1
 2. Install the [Create](https://modrinth.com/mod/create) mod
-3. For Fabric: install [Fabric API](https://modrinth.com/mod/fabric-api)
-4. Drop the CreateSchematicUpload `.jar` for your loader into your `mods/` folder
-5. Launch the game
+3. Drop the CreateSchematicHelper `.jar` into your `mods/` folder
+4. Launch the game
 
 ## Configuration
 
-**NeoForge / Forge:** `config/createschematicupload-client.toml`
-**Fabric:** `config/createschematicupload.json`
+**NeoForge:** `config/createschematichelper-client.toml`
 
 | Option | Default | Description |
 |---|---|---|
@@ -61,11 +62,19 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 
 ## How It Works
 
+### Uploading
 1. Save a schematic using the Create mod's Schematic and Quill
-2. The mod uploads the `.nbt` file to createmod.com
-3. A clickable link appears in chat
-4. Visit the link and log in to **claim** the schematic as yours
-5. From there you can publish it to the community
+2. The mod renders 120 isometric preview frames of the schematic
+3. The `.nbt` file and preview images are uploaded to createmod.com
+4. A clickable link appears in chat
+5. Visit the link and log in to **claim** the schematic as yours
+6. From there you can publish it to the community
+
+### Downloading
+1. Open the Create Schematic Table
+2. Toggle to URL download mode
+3. Paste a createmod.com schematic URL
+4. The schematic is downloaded and saved to your local schematics folder
 
 ## Building from Source
 
@@ -75,19 +84,21 @@ cd CreateSchematicUpload
 ./gradlew build
 ```
 
-JARs are produced per loader:
-- `neoforge/build/libs/` - NeoForge JAR
-- `fabric/build/libs/` - Fabric JAR
+Output JAR: `neoforge/build/libs/`
 
 ## Project Structure
 
 This is a multi-loader project following the [MultiLoader-Template](https://github.com/jaredlll08/MultiLoader-Template) pattern:
 
 ```
-common/    - Shared code (config, upload handler, mixin, GUI)
-neoforge/  - NeoForge entry point and config
-fabric/    - Fabric entry point and config
+common/    - Shared code (config, upload/download handlers, rendering, mixins, GUI)
+neoforge/  - NeoForge entry point, config, and platform-specific mixins
 ```
+
+## Credits
+
+- [Jamalam](https://github.com/JamCoreModding) &mdash; original CreateSchematicDownload mod
+- [salem-5/Create-Blueprinted](https://github.com/salem-5/Create-Blueprinted) &mdash; isometric rendering approach
 
 ## Modpacks
 
