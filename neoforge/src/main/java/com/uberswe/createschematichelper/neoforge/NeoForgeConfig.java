@@ -1,4 +1,4 @@
-package com.uberswe.createschematicupload.neoforge;
+package com.uberswe.createschematichelper.neoforge;
 
 import net.neoforged.neoforge.common.ModConfigSpec;
 

@@ -1,8 +1,8 @@
-package com.uberswe.createschematicupload.mixin;
+package com.uberswe.createschematichelper.mixin;
 
 import com.simibubi.create.content.schematics.SchematicExport;
 import com.simibubi.create.content.schematics.client.SchematicAndQuillHandler;
-import com.uberswe.createschematicupload.SchematicUploadHandler;
+import com.uberswe.createschematichelper.SchematicUploadHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.level.Level;
 import org.spongepowered.asm.mixin.Mixin;

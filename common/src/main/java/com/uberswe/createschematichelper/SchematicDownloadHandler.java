@@ -1,9 +1,11 @@
-package com.uberswe.createschematicdownload.createschematicdownload;
+package com.uberswe.createschematichelper;
 
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mojang.logging.LogUtils;
 import net.minecraft.client.Minecraft;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.Logger;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -24,7 +26,8 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
 
-public class SchematicDownloader {
+public class SchematicDownloadHandler {
+    private static final Logger LOGGER = LogUtils.getLogger();
     private static final String SHARED_SECRET = "5a0841453e5c2588583da1fb215f4af88a5a7d4ee86a720aea4ae27c4065dace";
 
     @Nullable
@@ -65,14 +68,14 @@ public class SchematicDownloader {
             byte[] nbtBytes = xorDecode(response.body(), xorKey);
             return writeSchematicFile(minecraft, slug, nbtBytes);
         } catch (Exception e) {
-            CreateSchematicDownload.LOGGER.error("Error downloading schematic: {}", e.getMessage());
+            LOGGER.error("Error downloading schematic: {}", e.getMessage());
             return null;
         }
     }
 
     private static JsonObject buildRequestBody(Minecraft minecraft, String slug, long timestamp) throws NoSuchAlgorithmException, InvalidKeyException {
         String username = minecraft.player != null ? minecraft.player.getGameProfile().getName() : "Unknown";
-        String message = timestamp + ":" + CreateSchematicDownloadPlatform.getModVersion() + ":" + username + ":" + slug;
+        String message = timestamp + ":" + ConfigValues.modVersion + ":" + username + ":" + slug;
 
         JsonObject body = new JsonObject();
         body.addProperty("message", message);
@@ -109,22 +112,22 @@ public class SchematicDownloader {
         }
 
         Files.write(outputFile, data);
-        CreateSchematicDownload.LOGGER.info("Saved schematic to {}", outputFile);
+        LOGGER.info("Saved schematic to {}", outputFile);
         return fileName;
     }
 
     private static String hmacSha256(String message) throws InvalidKeyException, NoSuchAlgorithmException {
         Mac mac = Mac.getInstance("HmacSHA256");
-        mac.init(new SecretKeySpec(SchematicDownloader.SHARED_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
+        mac.init(new SecretKeySpec(SHARED_SECRET.getBytes(StandardCharsets.UTF_8), "HmacSHA256"));
         byte[] hash = mac.doFinal(message.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(hash);
     }
 
     private static byte[] deriveXorKey(long timestamp) throws Exception {
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        md.update(SchematicDownloader.SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
+        md.update(SHARED_SECRET.getBytes(StandardCharsets.UTF_8));
         md.update(Long.toString(timestamp).getBytes(StandardCharsets.UTF_8));
-        return md.digest(); // 32 bytes
+        return md.digest();
     }
 
     private static byte[] xorDecode(byte[] data, byte[] key) {
