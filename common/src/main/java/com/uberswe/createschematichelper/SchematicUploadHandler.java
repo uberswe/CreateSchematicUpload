@@ -166,7 +166,7 @@ public class SchematicUploadHandler {
 
         for (RenderedFrame frame : frames) {
             baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+            baos.write(("Content-Disposition: form-data; name=\"rotation_images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(("Content-Type: image/png" + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(crlf.getBytes(StandardCharsets.UTF_8));
             baos.write(frame.data());
