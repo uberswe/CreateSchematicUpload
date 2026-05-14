@@ -11,7 +11,7 @@
   "createschematichelper.confirm.message": "Upload \"%s\" to createmod.com?",
   "createschematichelper.confirm.upload": "Upload",
   "createschematichelper.confirm.cancel": "Cancel",
-  "text.createschematichelper.url_field_hint": "Enter a code or CreateMod.com URL",
+  "text.createschematichelper.url_field_hint": "Code or CreateMod.com URL",
   "text.createschematichelper.download_schematic": "Download a schematic from CreateMod.com",
   "text.createschematichelper.choose_local_schematic": "Choose a local schematic"
 }
