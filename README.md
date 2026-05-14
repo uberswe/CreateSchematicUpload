@@ -41,18 +41,23 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 
 | Branch | Minecraft | Loaders | Create | Java |
 |--------|-----------|---------|--------|------|
-| `main` / `mc/1.21.1` | 1.21.1 | NeoForge | 6.0.10+ | 21 |
+| `main` / `mc/1.21.1` | 1.21.1 | NeoForge, Fabric | 6.0.10+ | 21 |
+| `mc/1.20.1` | 1.20.1 | Forge, NeoForge, Fabric | 6.0.8+ | 17 |
+| `mc/1.19.2` | 1.19.2 | Forge, Fabric | 0.5.1+ | 17 |
+| `mc/1.18.2` | 1.18.2 | Forge, Fabric | 0.5.1+ | 17 |
 
 ## Installation
 
-1. Install [NeoForge](https://neoforged.net/) for Minecraft 1.21.1
+1. Install the mod loader for your Minecraft version (NeoForge, Forge, or Fabric)
 2. Install the [Create](https://modrinth.com/mod/create) mod
-3. Drop the CreateSchematicHelper `.jar` into your `mods/` folder
-4. Launch the game
+3. For Fabric: install [Fabric API](https://modrinth.com/mod/fabric-api)
+4. Drop the CreateSchematicHelper `.jar` for your loader into your `mods/` folder
+5. Launch the game
 
 ## Configuration
 
-**NeoForge:** `config/createschematichelper-client.toml`
+**NeoForge / Forge:** `config/createschematichelper-client.toml`
+**Fabric:** `config/createschematichelper.json`
 
 | Option | Default | Description |
 |---|---|---|
@@ -84,7 +89,9 @@ cd CreateSchematicUpload
 ./gradlew build
 ```
 
-Output JAR: `neoforge/build/libs/`
+JARs are produced per loader:
+- `neoforge/build/libs/` - NeoForge JAR
+- `fabric/build/libs/` - Fabric JAR
 
 ## Project Structure
 
@@ -93,6 +100,7 @@ This is a multi-loader project following the [MultiLoader-Template](https://gith
 ```
 common/    - Shared code (config, upload/download handlers, rendering, mixins, GUI)
 neoforge/  - NeoForge entry point, config, and platform-specific mixins
+fabric/    - Fabric entry point and config
 ```
 
 ## Credits
