@@ -51,9 +51,9 @@ public class SchematicIsometricRenderer {
             Math.round(315f / DEGREES_PER_FRAME)
     );
 
-    private static final int PIXELS_PER_BLOCK = 48;
+    private static final int PIXELS_PER_BLOCK = 32;
     private static final int MAX_FB_SIZE = 2048;
-    private static final int MIN_FB_SIZE = 512;
+    private static final int MIN_FB_SIZE = 256;
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return CompletableFuture.supplyAsync(() -> {
@@ -83,13 +83,13 @@ public class SchematicIsometricRenderer {
                 int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
 
                 int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
-                int theoreticalFbSize = maxDim * PIXELS_PER_BLOCK * 4;
+                int theoreticalFbSize = maxDim * PIXELS_PER_BLOCK * 2;
                 int fbSize;
                 float effectivePixelWidth = PIXELS_PER_BLOCK;
 
                 if (theoreticalFbSize > maxSupported) {
                     fbSize = maxSupported;
-                    effectivePixelWidth = (float) maxSupported / (maxDim * 4.0f);
+                    effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
                 } else {
                     fbSize = Math.max(MIN_FB_SIZE, theoreticalFbSize);
                 }

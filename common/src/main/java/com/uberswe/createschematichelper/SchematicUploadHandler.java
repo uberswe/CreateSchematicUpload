@@ -91,6 +91,7 @@ public class SchematicUploadHandler {
         byte[] body = buildMultipartBody(boundary, fileName, fileBytes, frames);
 
         String baseUrl = ConfigValues.baseUrl;
+        LOGGER.info("Uploading {} ({} frames, {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
 
         long timestamp = System.currentTimeMillis() / 1000;
         Minecraft mc = Minecraft.getInstance();
@@ -109,6 +110,7 @@ public class SchematicUploadHandler {
                 .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
         handleResponse(response, baseUrl, frames.size());
     }
 
