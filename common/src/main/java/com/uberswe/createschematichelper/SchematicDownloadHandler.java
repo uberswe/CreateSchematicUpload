@@ -25,20 +25,33 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.util.HexFormat;
+import java.util.Locale;
+import java.util.regex.Pattern;
 
 public class SchematicDownloadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
     static final String SHARED_SECRET = "5a0841453e5c2588583da1fb215f4af88a5a7d4ee86a720aea4ae27c4065dace";
 
+    private static final Pattern SHORT_CODE_PATTERN = Pattern.compile("^[A-Za-z0-9]{5,6}$");
+
     @Nullable
-    public static String downloadSchematic(String slugOrUrl) {
-        String slug = slugOrUrl;
+    public static String downloadSchematic(String input) {
+        String trimmed = input.trim();
 
+        if (SHORT_CODE_PATTERN.matcher(trimmed).matches()) {
+            return downloadSchematicBySlug(trimmed.toUpperCase(Locale.ROOT));
+        }
+
+        String slug = trimmed;
         try {
-            URL url = new URI(slugOrUrl).toURL();
-
-            if (url.getHost().equals("createmod.com")) {
-                slug = url.getPath().substring("/schematics/".length());
+            URL url = new URI(trimmed).toURL();
+            String host = url.getHost();
+            String baseHost = URI.create(ConfigValues.baseUrl).getHost();
+            if (host.equals(baseHost)) {
+                String path = url.getPath();
+                if (path.startsWith("/schematics/")) {
+                    slug = path.substring("/schematics/".length());
+                }
             }
         } catch (URISyntaxException | MalformedURLException | IllegalArgumentException ignored) {
         }
@@ -53,7 +66,7 @@ public class SchematicDownloadHandler {
 
         try (HttpClient client = HttpClient.newHttpClient()) {
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create("https://createmod.com/api/mod/download"))
+                    .uri(URI.create(ConfigValues.baseUrl + "/api/mod/download"))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(buildRequestBody(minecraft, slug, timestamp).toString(), StandardCharsets.UTF_8))
                     .timeout(Duration.ofSeconds(30))
