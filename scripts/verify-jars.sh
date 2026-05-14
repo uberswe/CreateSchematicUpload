@@ -28,19 +28,19 @@ check() {
     echo "=== Verifying $desc: $(basename "$jar") ==="
 
     # Check that mod class files exist
-    if jar_contains "$jar" "com/uberswe/createschematicupload/"; then
+    if jar_contains "$jar" "com/uberswe/createschematichelper/"; then
         echo "  OK: Mod classes present"
     else
-        echo "  FAIL: No createschematicupload classes found"
+        echo "  FAIL: No createschematichelper classes found"
         ERRORS=$((ERRORS + 1))
     fi
 
     # Check mixin config
-    if jar_contains "$jar" "createschematicupload.mixins.json"; then
+    if jar_contains "$jar" "createschematichelper.mixins.json"; then
         echo "  OK: Mixin config present"
         # Verify mixin config references our mixin class
         local mixin_json
-        mixin_json=$(jar_extract "$jar" createschematicupload.mixins.json)
+        mixin_json=$(jar_extract "$jar" createschematichelper.mixins.json)
         if echo "$mixin_json" | grep -q "SchematicAndQuillHandlerMixin"; then
             echo "  OK: Mixin class referenced in config"
         else
@@ -80,7 +80,7 @@ check_forge() {
     local mods_toml
     mods_toml=$(jar_extract "$jar" META-INF/mods.toml)
 
-    if echo "$mods_toml" | grep -q 'modId.*=.*"createschematicupload"'; then
+    if echo "$mods_toml" | grep -q 'modId.*=.*"createschematichelper"'; then
         echo "  OK: Correct mod ID in mods.toml"
     else
         echo "  FAIL: Incorrect or missing mod ID in mods.toml"
@@ -97,7 +97,7 @@ check_forge() {
         echo "  WARN: Could not verify dependency format"
     fi
 
-    if echo "$mods_toml" | grep -q 'createschematicupload.mixins.json'; then
+    if echo "$mods_toml" | grep -q 'createschematichelper.mixins.json'; then
         echo "  OK: Mixin config declared in mods.toml"
     else
         echo "  FAIL: Mixin config not declared in mods.toml"
@@ -117,14 +117,14 @@ check_neoforge() {
     local mods_toml
     mods_toml=$(jar_extract "$jar" META-INF/neoforge.mods.toml)
 
-    if echo "$mods_toml" | grep -q 'modId.*=.*"createschematicupload"'; then
+    if echo "$mods_toml" | grep -q 'modId.*=.*"createschematichelper"'; then
         echo "  OK: Correct mod ID in neoforge.mods.toml"
     else
         echo "  FAIL: Incorrect or missing mod ID in neoforge.mods.toml"
         ERRORS=$((ERRORS + 1))
     fi
 
-    if echo "$mods_toml" | grep -q 'createschematicupload.mixins.json'; then
+    if echo "$mods_toml" | grep -q 'createschematichelper.mixins.json'; then
         echo "  OK: Mixin config declared in neoforge.mods.toml"
     else
         echo "  FAIL: Mixin config not declared in neoforge.mods.toml"
@@ -144,7 +144,7 @@ check_fabric() {
     local fabric_json
     fabric_json=$(jar_extract "$jar" fabric.mod.json)
 
-    if echo "$fabric_json" | grep -q '"createschematicupload"'; then
+    if echo "$fabric_json" | grep -q '"createschematichelper"'; then
         echo "  OK: Correct mod ID in fabric.mod.json"
     else
         echo "  FAIL: Incorrect or missing mod ID in fabric.mod.json"
@@ -152,10 +152,10 @@ check_fabric() {
     fi
 
     # Check refmap
-    if jar_contains "$jar" "createschematicupload.refmap.json"; then
+    if jar_contains "$jar" "createschematichelper.refmap.json"; then
         echo "  OK: Refmap present"
         local refmap
-        refmap=$(jar_extract "$jar" createschematicupload.refmap.json)
+        refmap=$(jar_extract "$jar" createschematichelper.refmap.json)
         # Check that refmap has intermediary mappings (class_1937 = Level, class_2338 = BlockPos)
         if echo "$refmap" | grep -q "class_1937"; then
             echo "  OK: Refmap contains intermediary mapping for Level (class_1937)"

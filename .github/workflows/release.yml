@@ -128,7 +128,7 @@ jobs:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (Forge ${{ matrix.game-version }})
+          name: CreateSchematicHelper ${{ inputs.version || github.ref_name }} (Forge ${{ matrix.game-version }})
           version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-forge
           version-type: release
           changelog: ${{ inputs.changelog || '' }}
@@ -151,7 +151,7 @@ jobs:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (NeoForge ${{ matrix.game-version }})
+          name: CreateSchematicHelper ${{ inputs.version || github.ref_name }} (NeoForge ${{ matrix.game-version }})
           version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-neoforge
           version-type: release
           changelog: ${{ inputs.changelog || '' }}
@@ -174,7 +174,7 @@ jobs:
           modrinth-id: ${{ vars.MODRINTH_PROJECT_ID }}
           modrinth-token: ${{ secrets.MODRINTH_TOKEN }}
 
-          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }} (Fabric ${{ matrix.game-version }})
+          name: CreateSchematicHelper ${{ inputs.version || github.ref_name }} (Fabric ${{ matrix.game-version }})
           version: ${{ inputs.version || github.ref_name }}+${{ matrix.game-version }}-fabric
           version-type: release
           changelog: ${{ inputs.changelog || '' }}
@@ -218,7 +218,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.version || github.ref_name }}
-          name: CreateSchematicUpload ${{ inputs.version || github.ref_name }}
+          name: CreateSchematicHelper ${{ inputs.version || github.ref_name }}
           body: ${{ inputs.changelog || '' }}
           generate_release_notes: true
           files: release-jars/*.jar
