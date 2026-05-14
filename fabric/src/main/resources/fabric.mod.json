@@ -1,0 +1,28 @@
+{
+    "schemaVersion": 1,
+    "id": "createschematicdownload",
+    "version": "${version}",
+    "name": "CreateSchematicDownload",
+    "description": "Adds an option in the schematic table to download a schematic from createmod.com",
+    "authors": [
+        "Jamalam"
+    ],
+    "contact": {
+        "homepage": "https://github.com/uberswe/CreateSchematicDownload",
+        "sources": "https://github.com/uberswe/CreateSchematicDownload",
+        "issues": "https://github.com/uberswe/CreateSchematicDownload/issues"
+    },
+    "license": "MIT",
+    "icon": "assets/createschematicdownload/icon.png",
+    "environment": "*",
+    "entrypoints": {
+        "main": [
+            "com.uberswe.createschematicdownload.createschematicdownload.fabric.CreateSchematicDownloadFabric"
+        ]
+    },
+    "mixins": [
+    ],
+    "depends": {
+        "minecraft": ">=${minecraft_version}"
+    }
+}
