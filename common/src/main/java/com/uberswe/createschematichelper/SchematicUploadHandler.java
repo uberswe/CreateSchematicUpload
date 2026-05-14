@@ -10,6 +10,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.slf4j.Logger;
 
+import com.uberswe.createschematichelper.SchematicIsometricRenderer.RenderedFrame;
+
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -25,7 +27,6 @@ import java.util.concurrent.CompletableFuture;
 public class SchematicUploadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
-    private static final String[] VIEW_NAMES = {"view_ne.png", "view_se.png", "view_sw.png", "view_nw.png"};
 
     public static void onSchematicSaved(Path filePath) {
         if (!ConfigValues.enabled) return;
@@ -46,12 +47,12 @@ public class SchematicUploadHandler {
         sendChatMessage(Component.translatable("createschematichelper.upload.rendering")
                 .withStyle(ChatFormatting.GRAY));
 
-        SchematicIsometricRenderer.renderFourViews(filePath)
-                .thenAcceptAsync(images -> {
+        SchematicIsometricRenderer.render360(filePath)
+                .thenAcceptAsync(frames -> {
                     try {
                         sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                                 .withStyle(ChatFormatting.GRAY));
-                        upload(filePath, images);
+                        upload(filePath, frames);
                     } catch (Exception e) {
                         LOGGER.error("Failed to upload schematic", e);
                         sendChatMessage(Component.translatable("createschematichelper.upload.failed")
@@ -75,7 +76,7 @@ public class SchematicUploadHandler {
                 });
     }
 
-    private static void upload(Path filePath, List<byte[]> images) throws Exception {
+    private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
         long fileSize = Files.size(filePath);
         if (fileSize > MAX_FILE_SIZE) {
             sendChatMessage(Component.translatable("createschematichelper.upload.too_large")
@@ -87,7 +88,7 @@ public class SchematicUploadHandler {
         byte[] fileBytes = Files.readAllBytes(filePath);
 
         String boundary = "----SchematicUpload" + System.currentTimeMillis();
-        byte[] body = buildMultipartBody(boundary, fileName, fileBytes, images);
+        byte[] body = buildMultipartBody(boundary, fileName, fileBytes, frames);
 
         String baseUrl = ConfigValues.baseUrl;
 
@@ -104,11 +105,11 @@ public class SchematicUploadHandler {
                 .header("X-Mod-Message", message)
                 .header("X-Mod-Signature", signature)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-                .timeout(Duration.ofSeconds(60))
+                .timeout(Duration.ofMinutes(5))
                 .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        handleResponse(response, baseUrl, images.size());
+        handleResponse(response, baseUrl, frames.size());
     }
 
     private static void handleResponse(HttpResponse<String> response, String baseUrl, int imageCount) {
@@ -152,7 +153,7 @@ public class SchematicUploadHandler {
         }
     }
 
-    private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<byte[]> images) throws Exception {
+    private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         String crlf = "\r\n";
 
@@ -163,12 +164,12 @@ public class SchematicUploadHandler {
         baos.write(fileBytes);
         baos.write(crlf.getBytes(StandardCharsets.UTF_8));
 
-        for (int i = 0; i < images.size() && i < VIEW_NAMES.length; i++) {
+        for (RenderedFrame frame : frames) {
             baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + VIEW_NAMES[i] + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+            baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(("Content-Type: image/png" + crlf).getBytes(StandardCharsets.UTF_8));
             baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-            baos.write(images.get(i));
+            baos.write(frame.data());
             baos.write(crlf.getBytes(StandardCharsets.UTF_8));
         }
 

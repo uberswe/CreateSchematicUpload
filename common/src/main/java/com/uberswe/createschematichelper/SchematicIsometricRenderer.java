@@ -33,28 +33,39 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 public class SchematicIsometricRenderer {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final float ISOMETRIC_PITCH = 35.264f;
-    private static final float[] VIEW_ROTATIONS = {45f, -45f, -135f, 135f};
-    private static final int PIXELS_PER_BLOCK = 64;
-    private static final int MAX_FB_SIZE = 4096;
+
+    private static final int FRAME_COUNT = 120;
+    private static final float DEGREES_PER_FRAME = 360f / FRAME_COUNT;
+
+    private static final Set<Integer> FEATURED_FRAMES = Set.of(
+            Math.round(45f / DEGREES_PER_FRAME),
+            Math.round(135f / DEGREES_PER_FRAME),
+            Math.round(225f / DEGREES_PER_FRAME),
+            Math.round(315f / DEGREES_PER_FRAME)
+    );
+
+    private static final int PIXELS_PER_BLOCK = 48;
+    private static final int MAX_FB_SIZE = 2048;
     private static final int MIN_FB_SIZE = 512;
 
-    public static CompletableFuture<List<byte[]>> renderFourViews(Path nbtFile) {
+    public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return CompletableFuture.supplyAsync(() -> {
             try (InputStream is = Files.newInputStream(nbtFile)) {
                 return NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
             } catch (Exception e) {
                 throw new RuntimeException("Failed to read NBT file", e);
             }
-        }).thenCompose(SchematicIsometricRenderer::renderFourViews);
+        }).thenCompose(SchematicIsometricRenderer::render360);
     }
 
-    public static CompletableFuture<List<byte[]>> renderFourViews(CompoundTag tag) {
+    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag) {
         CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
 
         RenderSystem.recordRenderCall(() -> {
@@ -114,7 +125,9 @@ public class SchematicIsometricRenderer {
                 };
 
                 List<NativeImage> images = new ArrayList<>();
-                for (float yRot : VIEW_ROTATIONS) {
+                for (int i = 0; i < FRAME_COUNT; i++) {
+                    float yRot = i * DEGREES_PER_FRAME;
+
                     renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                     renderTarget.clear(Minecraft.ON_OSX);
                     renderTarget.bindWrite(true);
@@ -151,19 +164,23 @@ public class SchematicIsometricRenderer {
 
         return renderFuture
                 .thenApplyAsync(SchematicIsometricRenderer::cropAndConvert)
-                .orTimeout(1, TimeUnit.MINUTES);
+                .orTimeout(2, TimeUnit.MINUTES);
     }
 
-    private static List<byte[]> cropAndConvert(List<NativeImage> rawImages) {
-        List<byte[]> result = new ArrayList<>();
-        for (NativeImage raw : rawImages) {
+    private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages) {
+        List<RenderedFrame> result = new ArrayList<>();
+        for (int i = 0; i < rawImages.size(); i++) {
+            NativeImage raw = rawImages.get(i);
             try (raw) {
                 NativeImage cropped = cropTransparent(raw);
                 try (cropped) {
-                    result.add(toPngBytes(cropped));
+                    byte[] png = toPngBytes(cropped);
+                    boolean featured = FEATURED_FRAMES.contains(i);
+                    String filename = String.format(featured ? "frame_%03d_featured.png" : "frame_%03d.png", i);
+                    result.add(new RenderedFrame(filename, png, featured));
                 }
             } catch (Exception e) {
-                LOGGER.error("Failed to process rendered view", e);
+                LOGGER.error("Failed to process frame {}", i, e);
             }
         }
         return result;
@@ -211,4 +228,6 @@ public class SchematicIsometricRenderer {
             Files.deleteIfExists(temp);
         }
     }
+
+    public record RenderedFrame(String filename, byte[] data, boolean featured) {}
 }
