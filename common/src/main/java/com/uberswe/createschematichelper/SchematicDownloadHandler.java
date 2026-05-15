@@ -42,21 +42,57 @@ public class SchematicDownloadHandler {
             return downloadSchematicBySlug(trimmed.toUpperCase(Locale.ROOT));
         }
 
-        String slug = trimmed;
         try {
             URL url = new URI(trimmed).toURL();
             String host = url.getHost();
             String baseHost = URI.create(ConfigValues.baseUrl).getHost();
             if (host.equals(baseHost)) {
+                String slug = trimmed;
                 String path = url.getPath();
                 if (path.startsWith("/schematics/")) {
                     slug = path.substring("/schematics/".length());
                 }
+                return downloadSchematicBySlug(slug);
             }
+            return downloadDirectNbt(url);
         } catch (URISyntaxException | MalformedURLException | IllegalArgumentException ignored) {
         }
 
-        return downloadSchematicBySlug(slug);
+        return downloadSchematicBySlug(trimmed);
+    }
+
+    @Nullable
+    private static String downloadDirectNbt(URL url) {
+        LOGGER.info("Downloading schematic directly from {}", url);
+        try (HttpClient client = HttpClient.newHttpClient()) {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(url.toURI())
+                    .GET()
+                    .timeout(Duration.ofSeconds(30))
+                    .build();
+            HttpResponse<byte[]> response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
+
+            if (response.statusCode() != 200) {
+                LOGGER.error("Failed to download from {}: HTTP {}", url, response.statusCode());
+                return null;
+            }
+
+            String name = extractFilename(url.getPath());
+            Minecraft minecraft = Minecraft.getInstance();
+            return writeSchematicFile(minecraft, name, response.body());
+        } catch (Exception e) {
+            LOGGER.error("Error downloading schematic from {}: {}", url, e.getMessage());
+            return null;
+        }
+    }
+
+    private static String extractFilename(String urlPath) {
+        String segment = urlPath.substring(urlPath.lastIndexOf('/') + 1);
+        if (segment.toLowerCase(Locale.ROOT).endsWith(".nbt")) {
+            segment = segment.substring(0, segment.length() - 4);
+        }
+        segment = segment.replaceAll("[^a-zA-Z0-9_\\-]", "");
+        return segment.isEmpty() ? "download" : segment;
     }
 
     @Nullable
