@@ -22,8 +22,6 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.Blocks;
-import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import org.jetbrains.annotations.NotNull;
@@ -110,7 +108,6 @@ public class SchematicIsometricRenderer {
                 SchematicLevel schematicLevel = new FixedLightSchematicLevel(BlockPos.ZERO, mc.level);
                 StructurePlaceSettings settings = new StructurePlaceSettings();
                 template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
-                placeFloor(schematicLevel, size, maxDim);
 
                 SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
 
@@ -140,7 +137,7 @@ public class SchematicIsometricRenderer {
                 for (int i = 0; i < FRAME_COUNT; i++) {
                     float yRot = i * DEGREES_PER_FRAME;
 
-                    renderTarget.setClearColor(0.78f, 0.78f, 0.76f, 1.0f);
+                    renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                     renderTarget.clear(Minecraft.ON_OSX);
                     renderTarget.bindWrite(true);
 
@@ -180,36 +177,133 @@ public class SchematicIsometricRenderer {
     }
 
     private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages) {
+        int fbSize = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
+        int unionMinX = fbSize, unionMinY = fbSize, unionMaxX = -1, unionMaxY = -1;
+
+        for (NativeImage raw : rawImages) {
+            int w = raw.getWidth();
+            int h = raw.getHeight();
+            for (int y = 0; y < h; y++) {
+                for (int x = 0; x < w; x++) {
+                    if (((raw.getPixelRGBA(x, y) >> 24) & 0xFF) > 0) {
+                        if (x < unionMinX) unionMinX = x;
+                        if (x > unionMaxX) unionMaxX = x;
+                        if (y < unionMinY) unionMinY = y;
+                        if (y > unionMaxY) unionMaxY = y;
+                    }
+                }
+            }
+        }
+
+        if (unionMaxX < unionMinX || unionMaxY < unionMinY) {
+            unionMinX = 0; unionMinY = 0; unionMaxX = 0; unionMaxY = 0;
+        }
+
+        int cropW = unionMaxX - unionMinX + 1;
+        int cropH = unionMaxY - unionMinY + 1;
+        int padding = Math.max(12, Math.max(cropW, cropH) / 8);
+        int bgW = cropW + padding * 2;
+        int bgH = cropH + padding * 2;
+        NativeImage background = generateBlueprintBackground(bgW, bgH);
+
         List<RenderedFrame> result = new ArrayList<>();
         for (int i = 0; i < rawImages.size(); i++) {
             NativeImage raw = rawImages.get(i);
             try (raw) {
-                String format = ConfigValues.imageFormat;
-                String ext = format.equals("jpeg") ? "jpg" : format;
-                byte[] imageBytes = toImageBytes(raw, format);
-                boolean featured = FEATURED_FRAMES.contains(i);
-                String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
-                String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
-                result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
+                NativeImage composited = compositeRegionOnBackground(background, raw,
+                        unionMinX, unionMinY, cropW, cropH, padding, bgW, bgH);
+                try (composited) {
+                    String format = ConfigValues.imageFormat;
+                    String ext = format.equals("jpeg") ? "jpg" : format;
+                    byte[] imageBytes = toImageBytes(composited, format);
+                    boolean featured = FEATURED_FRAMES.contains(i);
+                    String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
+                    String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
+                    result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
+                }
             } catch (Exception e) {
                 LOGGER.error("Failed to process frame {}", i, e);
+            }
+        }
+        background.close();
+        return result;
+    }
+
+    private static NativeImage generateBlueprintBackground(int w, int h) {
+        NativeImage bg = new NativeImage(w, h, false);
+
+        float cx = w / 2f;
+        float cy = h / 2f;
+        float maxDist = (float) Math.sqrt(cx * cx + cy * cy);
+
+        int smallGrid = Math.max(4, w / 50);
+        int largeGrid = smallGrid * 5;
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float dx = x - cx;
+                float dy = y - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
+                float brightness = 1.0f - dist * 0.35f;
+
+                int r = clamp8(Math.round(68 * brightness));
+                int g = clamp8(Math.round(108 * brightness));
+                int b = clamp8(Math.round(140 * brightness));
+
+                boolean onLargeGrid = (x % largeGrid == 0) || (y % largeGrid == 0);
+                boolean onSmallGrid = (x % smallGrid == 0) || (y % smallGrid == 0);
+
+                if (onLargeGrid) {
+                    r = clamp8(r + 45);
+                    g = clamp8(g + 45);
+                    b = clamp8(b + 45);
+                } else if (onSmallGrid) {
+                    r = clamp8(r + 22);
+                    g = clamp8(g + 22);
+                    b = clamp8(b + 22);
+                }
+
+                bg.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (g << 8) | r);
+            }
+        }
+        return bg;
+    }
+
+    private static NativeImage compositeRegionOnBackground(NativeImage background, NativeImage source,
+            int srcX, int srcY, int cropW, int cropH, int padding, int bgW, int bgH) {
+        NativeImage result = new NativeImage(bgW, bgH, false);
+        for (int y = 0; y < bgH; y++) {
+            for (int x = 0; x < bgW; x++) {
+                result.setPixelRGBA(x, y, background.getPixelRGBA(x, y));
+            }
+        }
+
+        for (int y = 0; y < cropH; y++) {
+            for (int x = 0; x < cropW; x++) {
+                int pixel = source.getPixelRGBA(srcX + x, srcY + y);
+                int a = (pixel >> 24) & 0xFF;
+                if (a == 0) continue;
+
+                int dx = padding + x;
+                int dy = padding + y;
+                if (a == 255) {
+                    result.setPixelRGBA(dx, dy, pixel);
+                } else {
+                    int bgPixel = result.getPixelRGBA(dx, dy);
+                    int sr = pixel & 0xFF, sg = (pixel >> 8) & 0xFF, sb = (pixel >> 16) & 0xFF;
+                    int dr = bgPixel & 0xFF, dg = (bgPixel >> 8) & 0xFF, db = (bgPixel >> 16) & 0xFF;
+                    int or = sr + dr * (255 - a) / 255;
+                    int og = sg + dg * (255 - a) / 255;
+                    int ob = sb + db * (255 - a) / 255;
+                    result.setPixelRGBA(dx, dy, 0xFF000000 | (ob << 16) | (og << 8) | or);
+                }
             }
         }
         return result;
     }
 
-    private static void placeFloor(SchematicLevel level, Vec3i schematicSize, int maxDim) {
-        BlockState concrete = Blocks.LIGHT_GRAY_CONCRETE.defaultBlockState();
-        BlockState snow = Blocks.SNOW_BLOCK.defaultBlockState();
-        int extent = maxDim * 4 + 16;
-        int cx = schematicSize.getX() / 2;
-        int cz = schematicSize.getZ() / 2;
-        for (int x = cx - extent; x <= cx + extent; x++) {
-            for (int z = cz - extent; z <= cz + extent; z++) {
-                boolean useSnow = ((Math.floorDiv(x, 4) + Math.floorDiv(z, 4)) % 2 == 0);
-                level.setBlock(new BlockPos(x, -1, z), useSnow ? concrete : snow, Block.UPDATE_CLIENTS);
-            }
-        }
+    private static int clamp8(int v) {
+        return Math.max(0, Math.min(255, v));
     }
 
     private static byte[] toImageBytes(NativeImage image, String format) throws Exception {
