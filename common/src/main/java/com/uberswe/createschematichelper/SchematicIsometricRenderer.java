@@ -51,13 +51,8 @@ public class SchematicIsometricRenderer {
 
     private static final int FRAME_COUNT = 120;
     private static final float DEGREES_PER_FRAME = 360f / FRAME_COUNT;
-
-    private static final Set<Integer> FEATURED_FRAMES = Set.of(
-            Math.round(45f / DEGREES_PER_FRAME),
-            Math.round(135f / DEGREES_PER_FRAME),
-            Math.round(225f / DEGREES_PER_FRAME),
-            Math.round(315f / DEGREES_PER_FRAME)
-    );
+    private static final float START_ANGLE = 45f;
+    private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
 
     private static final int PIXELS_PER_BLOCK = 32;
     private static final int MAX_FB_SIZE = 2048;
@@ -133,9 +128,19 @@ public class SchematicIsometricRenderer {
                     @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
                 };
 
+                float[] angles;
+                if (ConfigValues.render360) {
+                    angles = new float[FRAME_COUNT];
+                    for (int i = 0; i < FRAME_COUNT; i++) {
+                        angles[i] = START_ANGLE + i * DEGREES_PER_FRAME;
+                    }
+                } else {
+                    angles = FEATURED_ANGLES;
+                }
+
                 List<NativeImage> images = new ArrayList<>();
-                for (int i = 0; i < FRAME_COUNT; i++) {
-                    float yRot = i * DEGREES_PER_FRAME;
+                for (int i = 0; i < angles.length; i++) {
+                    float yRot = angles[i];
 
                     renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                     renderTarget.clear(Minecraft.ON_OSX);
@@ -206,6 +211,8 @@ public class SchematicIsometricRenderer {
         int bgH = cropH + padding * 2;
         NativeImage background = generateBlueprintBackground(bgW, bgH);
 
+        Set<Integer> featuredIndices = computeFeaturedIndices(rawImages.size());
+
         List<RenderedFrame> result = new ArrayList<>();
         for (int i = 0; i < rawImages.size(); i++) {
             NativeImage raw = rawImages.get(i);
@@ -216,7 +223,7 @@ public class SchematicIsometricRenderer {
                     String format = ConfigValues.imageFormat;
                     String ext = format.equals("jpeg") ? "jpg" : format;
                     byte[] imageBytes = toImageBytes(composited, format);
-                    boolean featured = FEATURED_FRAMES.contains(i);
+                    boolean featured = featuredIndices.contains(i);
                     String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
                     String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
                     result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
@@ -227,6 +234,19 @@ public class SchematicIsometricRenderer {
         }
         background.close();
         return result;
+    }
+
+    private static Set<Integer> computeFeaturedIndices(int frameCount) {
+        if (frameCount <= FEATURED_ANGLES.length) {
+            Set<Integer> all = new java.util.HashSet<>();
+            for (int i = 0; i < frameCount; i++) all.add(i);
+            return all;
+        }
+        Set<Integer> indices = new java.util.HashSet<>();
+        for (float angle : FEATURED_ANGLES) {
+            indices.add(Math.round((angle - START_ANGLE) / DEGREES_PER_FRAME));
+        }
+        return indices;
     }
 
     private static NativeImage generateBlueprintBackground(int w, int h) {

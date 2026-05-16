@@ -17,6 +17,10 @@ public class NeoForgeConfig {
             .comment("Base URL for the createmod.com API")
             .define("baseUrl", "https://createmod.com");
 
+    public static final ModConfigSpec.BooleanValue RENDER_360 = BUILDER
+            .comment("Render 120-frame 360° rotation view (disable for faster uploads with only 4 featured angles)")
+            .define("render360", true);
+
     public static final ModConfigSpec.BooleanValue SAVE_FEATURED_FRAMES = BUILDER
             .comment("Save the 4 featured perspective images locally to the schematics folder")
             .define("saveFeaturedFrames", false);
