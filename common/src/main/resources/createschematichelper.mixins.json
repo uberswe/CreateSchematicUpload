@@ -1,9 +1,9 @@
 {
   "required": true,
-  "package": "com.uberswe.createschematicupload.mixin",
+  "package": "com.uberswe.createschematichelper.mixin",
   "compatibilityLevel": "JAVA_17",
   "minVersion": "0.8",
-  "refmap": "createschematicupload.refmap.json",
+  "refmap": "createschematichelper.refmap.json",
   "client": [
     "SchematicAndQuillHandlerMixin"
   ],

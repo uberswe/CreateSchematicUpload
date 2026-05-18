@@ -1,7 +1,8 @@
-package com.uberswe.createschematicupload.forge;
+package com.uberswe.createschematichelper.forge;
 
 import com.mojang.logging.LogUtils;
-import com.uberswe.createschematicupload.ConfigValues;
+import com.uberswe.createschematichelper.ConfigValues;
+import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
@@ -9,15 +10,19 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import org.slf4j.Logger;
 
-@Mod("createschematicupload")
-public class CreateschematicuploadForge {
+@Mod("createschematichelper")
+public class CreateSchematicHelperForge {
     private static final Logger LOGGER = LogUtils.getLogger();
 
-    public CreateschematicuploadForge() {
+    public CreateSchematicHelperForge() {
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ForgeConfig.SPEC);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onConfigLoad);
         FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onConfigReload);
-        LOGGER.info("CreateSchematicUpload loaded (Forge)");
+
+        ModList.get().getModContainerById("createschematichelper")
+                .ifPresent(mc -> ConfigValues.modVersion = mc.getModInfo().getVersion().toString());
+
+        LOGGER.info("CreateSchematicHelper loaded (Forge)");
     }
 
     private void onConfigLoad(ModConfigEvent.Loading event) {
@@ -32,5 +37,9 @@ public class CreateschematicuploadForge {
         ConfigValues.enabled = ForgeConfig.ENABLED.get();
         ConfigValues.autoUpload = ForgeConfig.AUTO_UPLOAD.get();
         ConfigValues.baseUrl = ForgeConfig.BASE_URL.get();
+        ConfigValues.render360 = ForgeConfig.RENDER_360.get();
+        ConfigValues.saveFeaturedFrames = ForgeConfig.SAVE_FEATURED_FRAMES.get();
+        ConfigValues.saveAllFrames = ForgeConfig.SAVE_ALL_FRAMES.get();
+        ConfigValues.imageFormat = ForgeConfig.IMAGE_FORMAT.get();
     }
 }

@@ -1,0 +1,13 @@
+{
+  "required": true,
+  "package": "com.uberswe.createschematichelper.forge.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8",
+  "refmap": "createschematichelper.forge.refmap.json",
+  "client": [
+    "SchematicTableScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
