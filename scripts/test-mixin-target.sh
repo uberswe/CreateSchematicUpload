@@ -105,11 +105,11 @@ trap 'rm -rf "$TMPDIR"' EXIT
     2>/dev/null) || true
 
 (cd "$TMPDIR" && jar xf "$OUR_JAR" \
-    com/uberswe/createschematicupload/mixin/SchematicAndQuillHandlerMixin.class \
+    com/uberswe/createschematichelper/mixin/SchematicAndQuillHandlerMixin.class \
     2>/dev/null) || true
 
 CREATE_CLASS="$TMPDIR/com/simibubi/create/content/schematics/client/SchematicAndQuillHandler.class"
-MIXIN_CLASS="$TMPDIR/com/uberswe/createschematicupload/mixin/SchematicAndQuillHandlerMixin.class"
+MIXIN_CLASS="$TMPDIR/com/uberswe/createschematichelper/mixin/SchematicAndQuillHandlerMixin.class"
 
 if [ ! -f "$CREATE_CLASS" ]; then
     fail "Could not extract SchematicAndQuillHandler.class from Create JAR"
