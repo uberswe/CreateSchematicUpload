@@ -10,7 +10,10 @@ authors = "${mod_authors}"
 description = '''${mod_description}'''
 
 [[mixins]]
-config = "createschematicupload.mixins.json"
+config = "createschematichelper.mixins.json"
+
+[[mixins]]
+config = "createschematichelper.forge.mixins.json"
 
 [[dependencies."${mod_id}"]]
 modId = "forge"

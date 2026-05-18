@@ -46,7 +46,7 @@ dependencies {
 
 jar {
     manifest.attributes(
-        'MixinConfigs': 'createschematicupload.mixins.json'
+        'MixinConfigs': 'createschematichelper.mixins.json,createschematichelper.forge.mixins.json'
     )
 }
 
