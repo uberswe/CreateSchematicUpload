@@ -1,4 +1,4 @@
-package com.uberswe.createschematicupload;
+package com.uberswe.createschematichelper;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -12,7 +12,7 @@ public class SchematicUploadConfirmScreen extends Screen {
     private final String fileName;
 
     public SchematicUploadConfirmScreen(Path filePath) {
-        super(Component.translatable("createschematicupload.confirm.title"));
+        super(Component.translatable("createschematichelper.confirm.title"));
         this.filePath = filePath;
         this.fileName = filePath.getFileName().toString();
     }
@@ -23,7 +23,7 @@ public class SchematicUploadConfirmScreen extends Screen {
         int centerY = this.height / 2;
 
         this.addRenderableWidget(Button.builder(
-                Component.translatable("createschematicupload.confirm.upload"),
+                Component.translatable("createschematichelper.confirm.upload"),
                 button -> {
                     SchematicUploadHandler.confirmUpload(filePath);
                     this.onClose();
@@ -31,7 +31,7 @@ public class SchematicUploadConfirmScreen extends Screen {
         ).bounds(centerX - 105, centerY + 10, 100, 20).build());
 
         this.addRenderableWidget(Button.builder(
-                Component.translatable("createschematicupload.confirm.cancel"),
+                Component.translatable("createschematichelper.confirm.cancel"),
                 button -> this.onClose()
         ).bounds(centerX + 5, centerY + 10, 100, 20).build());
     }
@@ -41,7 +41,7 @@ public class SchematicUploadConfirmScreen extends Screen {
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         guiGraphics.drawCenteredString(this.font, this.title, this.width / 2, this.height / 2 - 40, 0xFFFFFF);
         guiGraphics.drawCenteredString(this.font,
-                Component.translatable("createschematicupload.confirm.message", fileName),
+                Component.translatable("createschematichelper.confirm.message", fileName),
                 this.width / 2, this.height / 2 - 20, 0xCCCCCC);
     }
 

@@ -64,19 +64,19 @@ jobs:
         if: steps.jars.outputs.forge_jar != ''
         uses: actions/upload-artifact@v4
         with:
-          name: CreateSchematicUpload-Forge
+          name: CreateSchematicHelper-Forge
           path: ${{ steps.jars.outputs.forge_jar }}
 
       - name: Upload NeoForge artifact
         if: steps.jars.outputs.neoforge_jar != ''
         uses: actions/upload-artifact@v4
         with:
-          name: CreateSchematicUpload-NeoForge
+          name: CreateSchematicHelper-NeoForge
           path: ${{ steps.jars.outputs.neoforge_jar }}
 
       - name: Upload Fabric artifact
         if: steps.jars.outputs.fabric_jar != ''
         uses: actions/upload-artifact@v4
         with:
-          name: CreateSchematicUpload-Fabric
+          name: CreateSchematicHelper-Fabric
           path: ${{ steps.jars.outputs.fabric_jar }}

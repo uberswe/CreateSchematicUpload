@@ -1,26 +1,27 @@
 {
   "schemaVersion": 1,
-  "id": "createschematicupload",
+  "id": "createschematichelper",
   "version": "${mod_version}",
-  "name": "CreateSchematicUpload",
-  "description": "Automatically uploads Create mod schematics to createmod.com for easy sharing.",
+  "name": "CreateSchematicHelper",
+  "description": "Upload and download Create mod schematics to and from createmod.com.",
   "authors": [
-    "uberswe"
+    "uberswe",
+    "Jamalam"
   ],
   "contact": {
     "homepage": "https://createmod.com",
     "sources": "https://github.com/uberswe/CreateSchematicUpload"
   },
-  "license": "All-Rights-Reserved",
-  "icon": "assets/createschematicupload/icon.png",
+  "license": "MIT",
+  "icon": "assets/createschematichelper/icon.png",
   "environment": "client",
   "entrypoints": {
     "client": [
-      "com.uberswe.createschematicupload.fabric.CreateschematicuploadFabric"
+      "com.uberswe.createschematichelper.fabric.CreateSchematicHelperFabric"
     ]
   },
   "mixins": [
-    "createschematicupload.mixins.json"
+    "createschematichelper.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.16.0",

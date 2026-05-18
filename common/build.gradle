@@ -15,7 +15,10 @@ legacyForge {
 dependencies {
     compileOnly("org.spongepowered:mixin:0.8.5")
 
-    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+    modCompileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+        transitive = false
+    }
+    modCompileOnly("net.createmod.ponder:Ponder-Forge-${minecraft_version}:1.0.91") {
         transitive = false
     }
 }

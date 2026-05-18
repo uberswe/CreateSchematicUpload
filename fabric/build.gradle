@@ -17,7 +17,10 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_version}"
 
     // Create slim jar for compile-time mixin resolution
-    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+    modCompileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") {
+        transitive = false
+    }
+    modCompileOnly("net.createmod.ponder:Ponder-Fabric-${minecraft_version}:1.0.91") {
         transitive = false
     }
 }

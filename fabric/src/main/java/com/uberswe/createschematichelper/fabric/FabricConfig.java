@@ -1,10 +1,10 @@
-package com.uberswe.createschematicupload.fabric;
+package com.uberswe.createschematichelper.fabric;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
-import com.uberswe.createschematicupload.ConfigValues;
+import com.uberswe.createschematichelper.ConfigValues;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -14,7 +14,7 @@ import java.nio.file.Path;
 public class FabricConfig {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path CONFIG_PATH = Path.of("config", "createschematicupload.json");
+    private static final Path CONFIG_PATH = Path.of("config", "createschematichelper.json");
 
     public static void load() {
         if (Files.exists(CONFIG_PATH)) {
@@ -25,6 +25,10 @@ public class FabricConfig {
                 if (obj.has("enabled")) ConfigValues.enabled = obj.get("enabled").getAsBoolean();
                 if (obj.has("autoUpload")) ConfigValues.autoUpload = obj.get("autoUpload").getAsBoolean();
                 if (obj.has("baseUrl")) ConfigValues.baseUrl = obj.get("baseUrl").getAsString();
+                if (obj.has("render360")) ConfigValues.render360 = obj.get("render360").getAsBoolean();
+                if (obj.has("saveFeaturedFrames")) ConfigValues.saveFeaturedFrames = obj.get("saveFeaturedFrames").getAsBoolean();
+                if (obj.has("saveAllFrames")) ConfigValues.saveAllFrames = obj.get("saveAllFrames").getAsBoolean();
+                if (obj.has("imageFormat")) ConfigValues.imageFormat = obj.get("imageFormat").getAsString();
             } catch (Exception e) {
                 LOGGER.error("Failed to load config, using defaults", e);
             }
@@ -39,6 +43,10 @@ public class FabricConfig {
             obj.addProperty("enabled", ConfigValues.enabled);
             obj.addProperty("autoUpload", ConfigValues.autoUpload);
             obj.addProperty("baseUrl", ConfigValues.baseUrl);
+            obj.addProperty("render360", ConfigValues.render360);
+            obj.addProperty("saveFeaturedFrames", ConfigValues.saveFeaturedFrames);
+            obj.addProperty("saveAllFrames", ConfigValues.saveAllFrames);
+            obj.addProperty("imageFormat", ConfigValues.imageFormat);
             Files.writeString(CONFIG_PATH, GSON.toJson(obj));
         } catch (IOException e) {
             LOGGER.error("Failed to save config", e);
