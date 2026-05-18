@@ -44,33 +44,21 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     @Unique
     private static final Component createschematichelper$LOCAL_TOOLTIP = new TranslatableComponent("text.createschematichelper.choose_local_schematic");
 
-    @Shadow
-    private float lastChasingProgress;
-    @Shadow
-    private float chasingProgress;
-    @Shadow
-    private float progress;
-    @Shadow
-    private Label schematicsLabel;
-    @Shadow
-    private ScrollInput schematicsArea;
-    @Shadow
-    private IconButton folderButton;
-    @Shadow
-    private IconButton refreshButton;
-    @Unique
-    private EditBox createschematichelper$urlField;
-    @Unique
-    private IconButton createschematichelper$modeButton;
+    @Shadow private float lastChasingProgress;
+    @Shadow private float chasingProgress;
+    @Shadow private float progress;
+    @Shadow private Label schematicsLabel;
+    @Shadow private ScrollInput schematicsArea;
+    @Shadow private IconButton folderButton;
+    @Shadow private IconButton refreshButton;
+    @Unique private EditBox createschematichelper$urlField;
+    @Unique private IconButton createschematichelper$modeButton;
 
     public SchematicTableScreenMixin(SchematicTableMenu container, Inventory inv, Component title) {
         super(container, inv, title);
     }
 
-    @Inject(
-            method = "init",
-            at = @At("TAIL")
-    )
+    @Inject(method = "init", at = @At("TAIL"))
     private void createschematichelper$addUrlField(CallbackInfo ci) {
         int x = this.leftPos;
         int y = this.topPos;
@@ -90,18 +78,14 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         });
         this.addRenderableWidget(this.createschematichelper$urlField);
 
-        this.createschematichelper$modeButton = new IconButton(x + 208, y + 11, AllIcons.I_OPEN_FOLDER);
+        this.createschematichelper$modeButton = new IconButton(x + 207, y + 11, AllIcons.I_OPEN_FOLDER);
         this.createschematichelper$modeButton.withCallback(this::createschematichelper$toggleMode);
         this.addRenderableWidget(this.createschematichelper$modeButton);
 
         this.createschematichelper$toggleMode();
     }
 
-    @Inject(
-            method = "lambda$init$0",
-            at = @At("HEAD"),
-            cancellable = true
-    )
+    @Inject(method = "lambda$init$0", at = @At("HEAD"), cancellable = true, remap = false)
     private void createschematichelper$downloadSchematic(CallbackInfo ci) {
         if (!menu.canWrite() || !this.createschematichelper$urlField.isVisible()) {
             return;
@@ -119,7 +103,6 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             this.createschematichelper$urlField.setValue("");
             this.createschematichelper$urlField.setSuggestion("Failed to download schematic");
         }
-
         ci.cancel();
     }
 
@@ -132,25 +115,12 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         if (this.schematicsArea != null) {
             this.schematicsArea.visible = this.schematicsArea.active = localMode;
         }
-
         this.createschematichelper$urlField.visible = this.createschematichelper$urlField.active = !localMode;
-
         this.createschematichelper$modeButton.setToolTip(localMode ? createschematichelper$DOWNLOAD_TOOLTIP : createschematichelper$LOCAL_TOOLTIP);
         this.createschematichelper$modeButton.setIcon(localMode ? new DownloadIcon() : AllIcons.I_OPEN_FOLDER);
     }
 
-    @ModifyConstant(
-            method = "init",
-            constant = @Constant(intValue = 206)
-    )
-    private int createschematichelper$patchRefreshButtonX(int x) {
-        return x + 2;
-    }
-
-    @ModifyConstant(
-            method = "init",
-            constant = @Constant(intValue = 21, ordinal = 2)
-    )
+    @ModifyConstant(method = "init", constant = @Constant(intValue = 21, ordinal = 3))
     private int createschematichelper$patchRefreshButtonY(int y) {
         return 32;
     }
@@ -159,10 +129,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             method = "renderBg",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/Font;drawShadow(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/network/chat/Component;FFI)I",
-                    remap = true
-            ),
-            remap = false
+                    target = "Lnet/minecraft/client/gui/Font;drawShadow(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/network/chat/Component;FFI)I"
+            )
     )
     private int createschematichelper$stopLabelRender(Font instance, PoseStack poseStack, Component text, float x, float y, int color) {
         if (!this.createschematichelper$urlField.isVisible()) {
@@ -175,32 +143,13 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             method = "renderBg",
             at = @At(
                     value = "INVOKE",
-                    target = "Lcom/simibubi/create/content/schematics/table/SchematicTableScreen;drawCenteredString(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;III)V",
-                    remap = true
-            ),
-            remap = false
-    )
-    private void createschematichelper$patchTitle(SchematicTableScreen instance, PoseStack poseStack, Font font, Component text, int x, int y, int color) {
-        if (this.createschematichelper$urlField.isVisible()) {
-            GuiComponent.drawCenteredString(poseStack, font, createschematichelper$PROCESSING_TITLE, x, y, color);
-        } else {
-            GuiComponent.drawCenteredString(poseStack, font, text, x, y, color);
-        }
-    }
-
-    @Redirect(
-            method = "renderBg",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lcom/mojang/blaze3d/vertex/PoseStack;IILnet/minecraft/client/gui/GuiComponent;)V",
-                    remap = false
-            ),
-            remap = false
+                    target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lcom/mojang/blaze3d/vertex/PoseStack;IILnet/minecraft/client/gui/GuiComponent;)V"
+            )
     )
     private void createschematichelper$patchRender(AllGuiTextures instance, PoseStack poseStack, int x, int y, GuiComponent guiComponent) {
         if (instance == AllGuiTextures.SCHEMATIC_TABLE && this.createschematichelper$urlField.isVisible()) {
             RenderSystem.setShaderTexture(0, createschematichelper$TABLE_TEXTURE);
-            this.blit(poseStack, x, y, 0, 0, AllGuiTextures.SCHEMATIC_TABLE.width, AllGuiTextures.SCHEMATIC_TABLE.height);
+            blit(poseStack, x, y, 0, 0, 214, 85);
         } else {
             instance.render(poseStack, x, y, guiComponent);
         }
