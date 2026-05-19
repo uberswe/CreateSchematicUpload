@@ -36,6 +36,13 @@ jobs:
       - name: Test mixin target
         run: ./scripts/test-mixin-target.sh
 
+      - name: Test Forge mixin refmap/SRG
+        if: hashFiles('forge/') != ''
+        run: |
+          if [ -f ./scripts/test-forge-mixin-refmap.sh ]; then
+            ./scripts/test-forge-mixin-refmap.sh
+          fi
+
       - name: Find built JARs
         id: jars
         run: |
