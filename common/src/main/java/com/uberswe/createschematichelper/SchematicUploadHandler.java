@@ -8,8 +8,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraft.network.chat.TextComponent;
-import net.minecraft.network.chat.TranslatableComponent;
 import org.slf4j.Logger;
 
 import com.uberswe.createschematichelper.SchematicIsometricRenderer.RenderedFrame;
@@ -47,19 +45,19 @@ public class SchematicUploadHandler {
     }
 
     private static void uploadAsync(Path filePath) {
-        sendChatMessage(new TranslatableComponent("createschematichelper.upload.rendering")
+        sendChatMessage(Component.translatable("createschematichelper.upload.rendering")
                 .withStyle(ChatFormatting.GRAY));
 
         SchematicIsometricRenderer.render360(filePath)
                 .thenAcceptAsync(frames -> {
                     try {
                         saveFramesLocally(filePath, frames);
-                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
+                        sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                                 .withStyle(ChatFormatting.GRAY));
                         upload(filePath, frames);
                     } catch (Exception e) {
                         LOGGER.error("Failed to upload schematic", e);
-                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+                        sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                                 .withStyle(ChatFormatting.YELLOW));
                     }
                 })
@@ -67,12 +65,12 @@ public class SchematicUploadHandler {
                     LOGGER.error("Failed to render previews, uploading without images", ex);
                     CompletableFuture.runAsync(() -> {
                         try {
-                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
+                            sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                                     .withStyle(ChatFormatting.GRAY));
                             upload(filePath, List.of());
                         } catch (Exception e) {
                             LOGGER.error("Failed to upload schematic", e);
-                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+                            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                                     .withStyle(ChatFormatting.YELLOW));
                         }
                     });
@@ -83,7 +81,7 @@ public class SchematicUploadHandler {
     private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
         long fileSize = Files.size(filePath);
         if (fileSize > MAX_FILE_SIZE) {
-            sendChatMessage(new TranslatableComponent("createschematichelper.upload.too_large")
+            sendChatMessage(Component.translatable("createschematichelper.upload.too_large")
                     .withStyle(ChatFormatting.RED));
             return;
         }
@@ -94,7 +92,7 @@ public class SchematicUploadHandler {
 
         if (fileBytes.length == 0) {
             LOGGER.error("Schematic file is empty: {}", filePath);
-            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                     .withStyle(ChatFormatting.YELLOW));
             return;
         }
@@ -151,9 +149,9 @@ public class SchematicUploadHandler {
                 String token = json.get("token").getAsString();
                 String url = baseUrl + "/u/" + token;
 
-                MutableComponent prefix = new TranslatableComponent("createschematichelper.upload.success")
+                MutableComponent prefix = Component.translatable("createschematichelper.upload.success")
                         .withStyle(ChatFormatting.GREEN);
-                MutableComponent link = new TextComponent(url)
+                MutableComponent link = Component.literal(url)
                         .withStyle(style -> style
                                 .withColor(ChatFormatting.AQUA)
                                 .withUnderlined(true)
@@ -161,17 +159,17 @@ public class SchematicUploadHandler {
 
                 sendChatMessage(prefix.append(link));
             } else if (status == 409) {
-                sendChatMessage(new TranslatableComponent("createschematichelper.upload.already_exists")
+                sendChatMessage(Component.translatable("createschematichelper.upload.already_exists")
                         .withStyle(ChatFormatting.YELLOW));
             } else {
                 String error = json.has("error") ? json.get("error").getAsString() : "Unknown error";
                 LOGGER.error("Upload failed (HTTP {}): {}", status, error);
-                sendChatMessage(new TranslatableComponent("createschematichelper.upload.error", error)
+                sendChatMessage(Component.translatable("createschematichelper.upload.error", error)
                         .withStyle(ChatFormatting.YELLOW));
             }
         } catch (Exception e) {
             LOGGER.error("Failed to parse upload response (HTTP {})", status, e);
-            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                     .withStyle(ChatFormatting.YELLOW));
         }
     }
