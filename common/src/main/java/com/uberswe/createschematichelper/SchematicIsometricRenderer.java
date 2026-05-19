@@ -147,10 +147,11 @@ public class SchematicIsometricRenderer {
 
                     PoseStack poseStack = new PoseStack();
                     poseStack.pushPose();
+                    poseStack.translate(fbW / 2.0, fbH / 2.0, 0);
                     poseStack.scale(scale, scale, scale);
                     poseStack.mulPose(Vector3f.XP.rotationDegrees(ISOMETRIC_PITCH));
                     poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
-                    poseStack.translate(-size.getX() / 2f, -size.getY() / 2f, -size.getZ() / 2f);
+                    poseStack.translate(-size.getX() / 2.0, -size.getY() / 2.0, -size.getZ() / 2.0);
 
                     renderer.render(poseStack, buffers);
                     buffers.draw();
