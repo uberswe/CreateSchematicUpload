@@ -50,7 +50,7 @@ public class SchematicIsometricRenderer {
     private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
 
     private static final int PIXELS_PER_BLOCK = 32;
-    private static final int MAX_FB_SIZE = 2048;
+    private static final int MAX_FB_SIZE = 610;
     private static final int MIN_FB_SIZE = 256;
     private static final int FRAMES_PER_BATCH = 8;
 
