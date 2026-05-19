@@ -5,12 +5,15 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import com.simibubi.create.content.schematics.SchematicWorld;
 import com.simibubi.create.content.schematics.client.SchematicRenderer;
 import com.simibubi.create.foundation.render.SuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
@@ -44,13 +47,19 @@ public class SchematicIsometricRenderer {
     private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
 
     private static final int PIXELS_PER_BLOCK = 32;
-    private static final int MAX_FB_SIZE = 610;
-    private static final int MIN_FB_SIZE = 256;
+    private static final int MAX_FB_SIZE = 1400;
+    private static final int MIN_FB_SIZE = 768;
+    private static final int TARGET_WIDTH = 1200;
+    private static final long MAX_TOTAL_IMAGE_BYTES = 8L * 1024 * 1024;
+    private static final float QUALITY_HIGH = 0.85f;
+    private static final float QUALITY_LOW = 0.75f;
     private static final int FRAMES_PER_BATCH = 8;
 
     private static class DirectSchematicRenderer extends SchematicRenderer {
         void buildBuffers() {
+            LOGGER.info("Building render buffers for schematic");
             redraw();
+            LOGGER.info("Render buffers built");
         }
     }
 
@@ -127,6 +136,34 @@ public class SchematicIsometricRenderer {
 
         float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
 
+        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
+        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
+            @Override
+            public VertexConsumer getEarlyBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public VertexConsumer getBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public VertexConsumer getLateBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public void draw() {
+                mcBuffers.endBatch();
+            }
+
+            @Override
+            public void draw(RenderType type) {
+                mcBuffers.endBatch(type);
+            }
+        };
+
         float[] angles;
         if (ConfigValues.render360) {
             int frameCount = Math.max(4, ConfigValues.frameCount);
@@ -139,7 +176,8 @@ public class SchematicIsometricRenderer {
             angles = FEATURED_ANGLES;
         }
 
-        return new RenderState(renderTarget, renderer, size, fbW, fbH, scale, angles);
+        LOGGER.info("Render state ready: {}x{} framebuffer, scale={}, {} frames", fbW, fbH, scale, angles.length);
+        return new RenderState(renderTarget, renderer, buffers, size, fbW, fbH, scale, angles);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -159,8 +197,6 @@ public class SchematicIsometricRenderer {
             );
             RenderSystem.setProjectionMatrix(projectionMatrix);
 
-            SuperRenderTypeBuffer buffers = SuperRenderTypeBuffer.getInstance();
-
             for (int i = startIndex; i < end; i++) {
                 float yRot = state.angles[i];
 
@@ -176,8 +212,8 @@ public class SchematicIsometricRenderer {
                 poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
                 poseStack.translate(-state.size.getX() / 2.0, -state.size.getY() / 2.0, -state.size.getZ() / 2.0);
 
-                state.renderer.render(poseStack, buffers);
-                buffers.draw();
+                state.renderer.render(poseStack, state.buffers);
+                state.buffers.draw();
                 poseStack.popPose();
 
                 NativeImage image = new NativeImage(state.fbW, state.fbH, false);
@@ -205,15 +241,18 @@ public class SchematicIsometricRenderer {
     private static class RenderState {
         final RenderTarget renderTarget;
         final DirectSchematicRenderer renderer;
+        final SuperRenderTypeBuffer buffers;
         final Vec3i size;
         final int fbW, fbH;
         final float scale;
         final float[] angles;
 
-        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer, Vec3i size,
+        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer,
+                    SuperRenderTypeBuffer buffers, Vec3i size,
                     int fbW, int fbH, float scale, float[] angles) {
             this.renderTarget = renderTarget;
             this.renderer = renderer;
+            this.buffers = buffers;
             this.size = size;
             this.fbW = fbW;
             this.fbH = fbH;
@@ -223,8 +262,9 @@ public class SchematicIsometricRenderer {
     }
 
     private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages) {
-        int fbSize = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
-        int unionMinX = fbSize, unionMinY = fbSize, unionMaxX = -1, unionMaxY = -1;
+        int fbW = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
+        int fbH = rawImages.isEmpty() ? 1 : rawImages.get(0).getHeight();
+        int unionMinX = fbW, unionMinY = fbH, unionMaxX = -1, unionMaxY = -1;
 
         for (NativeImage raw : rawImages) {
             int w = raw.getWidth();
@@ -248,37 +288,78 @@ public class SchematicIsometricRenderer {
         int cropW = unionMaxX - unionMinX + 1;
         int cropH = unionMaxY - unionMinY + 1;
         int padding = Math.max(12, Math.max(cropW, cropH) / 8);
-        int bgW = cropW + padding * 2;
-        int bgH = cropH + padding * 2;
-        NativeImage background = generateBlueprintBackground(bgW, bgH);
 
+        int contentW = cropW + padding * 2;
+        int contentH = cropH + padding * 2;
+        int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
+        int bgW, bgH;
+        if (contentW * ratio[1] > contentH * ratio[0]) {
+            bgW = contentW;
+            bgH = bgW * ratio[1] / ratio[0];
+        } else {
+            bgH = contentH;
+            bgW = bgH * ratio[0] / ratio[1];
+        }
+        int padX = (bgW - cropW) / 2;
+        int padY = (bgH - cropH) / 2;
+
+        NativeImage background = generateBlueprintBackground(bgW, bgH);
         Set<Integer> featuredIndices = computeFeaturedIndices(rawImages.size());
 
-        List<RenderedFrame> result = new ArrayList<>();
+        List<BufferedImage> composited = new ArrayList<>();
+        List<Boolean> featuredFlags = new ArrayList<>();
         for (int i = 0; i < rawImages.size(); i++) {
             NativeImage raw = rawImages.get(i);
             try {
-                NativeImage composited = compositeRegionOnBackground(background, raw,
-                        unionMinX, unionMinY, cropW, cropH, padding, bgW, bgH);
+                NativeImage comp = compositeRegionOnBackground(background, raw,
+                        unionMinX, unionMinY, cropW, cropH, padX, padY, bgW, bgH);
                 try {
-                    String format = ConfigValues.imageFormat;
-                    String ext = format.equals("jpeg") ? "jpg" : format;
-                    byte[] imageBytes = toImageBytes(composited, format);
-                    boolean featured = featuredIndices.contains(i);
-                    String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
-                    String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
-                    result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
+                    composited.add(toScaledBufferedImage(comp));
                 } finally {
-                    composited.close();
+                    comp.close();
                 }
             } catch (Exception e) {
                 LOGGER.error("Failed to process frame {}", i, e);
             } finally {
                 raw.close();
             }
+            featuredFlags.add(featuredIndices.contains(i));
         }
         background.close();
+
+        List<RenderedFrame> result = encodeFrames(composited, featuredFlags, QUALITY_HIGH);
+        if (totalBytes(result) > MAX_TOTAL_IMAGE_BYTES) {
+            LOGGER.info("Frames exceed {}MB at high quality, re-encoding at {}", MAX_TOTAL_IMAGE_BYTES / 1024 / 1024, QUALITY_LOW);
+            result = encodeFrames(composited, featuredFlags, QUALITY_LOW);
+        }
         return result;
+    }
+
+    private static List<RenderedFrame> encodeFrames(List<BufferedImage> images, List<Boolean> featuredFlags, float quality) {
+        List<RenderedFrame> result = new ArrayList<>();
+        String format = ConfigValues.imageFormat;
+        String ext = format.equals("jpeg") ? "jpg" : format;
+        for (int i = 0; i < images.size(); i++) {
+            try {
+                byte[] imageBytes = encodeImage(images.get(i), format, quality);
+                boolean featured = featuredFlags.get(i);
+                String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
+                String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
+                result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
+            } catch (Exception e) {
+                LOGGER.error("Failed to encode frame {}", i, e);
+            }
+        }
+        return result;
+    }
+
+    private static long totalBytes(List<RenderedFrame> frames) {
+        long total = 0;
+        for (RenderedFrame f : frames) {
+            total += f.data().length;
+            if (f.featured()) total += f.data().length;
+        }
+        return total;
     }
 
     private static Set<Integer> computeFeaturedIndices(int frameCount) {
@@ -336,7 +417,7 @@ public class SchematicIsometricRenderer {
     }
 
     private static NativeImage compositeRegionOnBackground(NativeImage background, NativeImage source,
-            int srcX, int srcY, int cropW, int cropH, int padding, int bgW, int bgH) {
+            int srcX, int srcY, int cropW, int cropH, int padX, int padY, int bgW, int bgH) {
         NativeImage result = new NativeImage(bgW, bgH, false);
         for (int y = 0; y < bgH; y++) {
             for (int x = 0; x < bgW; x++) {
@@ -350,8 +431,8 @@ public class SchematicIsometricRenderer {
                 int a = (pixel >> 24) & 0xFF;
                 if (a == 0) continue;
 
-                int dx = padding + x;
-                int dy = padding + y;
+                int dx = padX + x;
+                int dy = padY + y;
                 if (a == 255) {
                     result.setPixelRGBA(dx, dy, pixel);
                 } else {
@@ -372,17 +453,7 @@ public class SchematicIsometricRenderer {
         return Math.max(0, Math.min(255, v));
     }
 
-    private static byte[] toImageBytes(NativeImage image, String format) throws Exception {
-        if (format.equals("png")) {
-            Path temp = Files.createTempFile("schematic_render_", ".png");
-            try {
-                image.writeToFile(temp);
-                return Files.readAllBytes(temp);
-            } finally {
-                Files.deleteIfExists(temp);
-            }
-        }
-
+    private static BufferedImage toScaledBufferedImage(NativeImage image) {
         int w = image.getWidth();
         int h = image.getHeight();
         BufferedImage buffered = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
@@ -396,11 +467,28 @@ public class SchematicIsometricRenderer {
             }
         }
 
+        int targetW = TARGET_WIDTH;
+        int targetH = targetW * h / w;
+        BufferedImage scaled = new BufferedImage(targetW, targetH, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g2d = scaled.createGraphics();
+        g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION, java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        g2d.drawImage(buffered, 0, 0, targetW, targetH, null);
+        g2d.dispose();
+        return scaled;
+    }
+
+    private static byte[] encodeImage(BufferedImage buffered, String format, float quality) throws Exception {
+        if (format.equals("png")) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(buffered, "png", baos);
+            return baos.toByteArray();
+        }
+
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
         ImageWriteParam param = writer.getDefaultWriteParam();
         param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        param.setCompressionQuality(0.60f);
+        param.setCompressionQuality(quality);
         writer.setOutput(ImageIO.createImageOutputStream(baos));
         writer.write(null, new IIOImage(buffered, null, null), param);
         writer.dispose();
