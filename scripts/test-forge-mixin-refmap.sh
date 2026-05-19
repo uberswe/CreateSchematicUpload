@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # ============================================================================
-# Forge Mixin Refmap / SRG Name Verification Test
+# Mixin Refmap / SRG Name Verification Test
 # ============================================================================
-# Verifies that Forge mixin annotations will work at runtime by checking:
-#   1. If the built JAR contains the declared refmap files, OR
-#   2. All mixin method/target references use SRG names with remap=false
-#
-# Background: Forge uses SRG-named methods at runtime. Without a refmap,
-# Mojang-mapped names like "init" or "renderBg" won't be found, causing
-# MixinTransformerError at startup.
+# Verifies that mixin annotations will work at runtime by checking:
+#   Forge:  all method/target references use SRG names with remap=false
+#           (or the refmap is present in the JAR)
+#   Fabric: the refmap is present in the JAR (Fabric uses intermediary
+#           mappings; Loom generates refmaps correctly)
+#   NeoForge: uses Mojang mappings at runtime — no refmap needed
 #
 # Requires: a completed ./gradlew build
 # ============================================================================
@@ -32,7 +31,7 @@ warn() {
     echo "  WARN: $1"
 }
 
-echo "=== Forge Mixin Refmap / SRG Name Verification ==="
+echo "=== Mixin Refmap / SRG Name Verification ==="
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -211,6 +210,84 @@ for config_file in $(find . -name "*.mixins.json" -path "*/resources/*" 2>/dev/n
         warn "$config_name has no refmap declaration"
     fi
 done
+
+# ---------------------------------------------------------------------------
+# 6. Fabric: verify refmap is present in the JAR
+# ---------------------------------------------------------------------------
+FABRIC_JAR=""
+if [ -d "fabric/build/libs" ]; then
+    FABRIC_JAR=$(find "$(pwd)/fabric/build/libs" -maxdepth 1 -name '*.jar' ! -name '*-sources*' 2>/dev/null | head -1)
+fi
+
+if [ -n "$FABRIC_JAR" ]; then
+    echo ""
+    echo "--- Fabric refmap verification ---"
+    echo "Fabric JAR: $(basename "$FABRIC_JAR")"
+
+    FABRIC_REFMAPS=$(jar tf "$FABRIC_JAR" | grep "refmap" || true)
+
+    if [ -n "$FABRIC_REFMAPS" ]; then
+        for rf in $FABRIC_REFMAPS; do
+            pass "Fabric JAR contains refmap: $rf"
+        done
+    else
+        fail "Fabric JAR is MISSING refmap — mixin method names won't be remapped to intermediary at runtime"
+    fi
+
+    for config_file in $(find . -name "*.mixins.json" -path "*/common/src/*" -o -name "*.mixins.json" -path "*/fabric/src/*" 2>/dev/null | sort -u); do
+        config_name=$(basename "$config_file")
+        refmap_val=$(grep '"refmap"' "$config_file" | sed 's/.*"refmap" *: *"\([^"]*\)".*/\1/' || true)
+        if [ -n "$refmap_val" ]; then
+            if echo "$FABRIC_REFMAPS" | grep -q "$refmap_val"; then
+                pass "Fabric: $config_name refmap '$refmap_val' found in JAR"
+            else
+                fail "Fabric: $config_name declares refmap '$refmap_val' but it is MISSING from JAR"
+            fi
+        fi
+    done
+fi
+
+# ---------------------------------------------------------------------------
+# 7. NeoForge: verify Mojang-mapped method names are used (no SRG needed)
+# ---------------------------------------------------------------------------
+NEOFORGE_JAR=""
+if [ -d "neoforge/build/libs" ]; then
+    NEOFORGE_JAR=$(find "$(pwd)/neoforge/build/libs" -maxdepth 1 -name '*.jar' ! -name '*-sources*' 2>/dev/null | head -1)
+fi
+
+if [ -n "$NEOFORGE_JAR" ]; then
+    echo ""
+    echo "--- NeoForge mixin verification ---"
+    echo "NeoForge JAR: $(basename "$NEOFORGE_JAR")"
+
+    NEOFORGE_MIXIN_DIR="neoforge/src/main/java"
+    if [ -d "$NEOFORGE_MIXIN_DIR" ]; then
+        NF_MIXIN_FILES=$(find "$NEOFORGE_MIXIN_DIR" -name "*Mixin*.java" -type f 2>/dev/null)
+        for mixin_file in $NF_MIXIN_FILES; do
+            echo ""
+            echo "  File: $(basename "$mixin_file")"
+
+            NF_METHOD_REFS=$(grep -noE 'method\s*=\s*"[^"]*"' "$mixin_file" || true)
+            if [ -z "$NF_METHOD_REFS" ]; then
+                pass "No method references found"
+                continue
+            fi
+
+            while IFS= read -r line; do
+                line_num=$(echo "$line" | cut -d: -f1)
+                method_val=$(echo "$line" | sed 's/.*method *= *"\([^"]*\)".*/\1/')
+
+                if echo "$method_val" | grep -qE '^m_[0-9]+_$'; then
+                    fail "Line $line_num: method=\"$method_val\" uses SRG name — NeoForge uses Mojang mappings, use the Mojang name instead"
+                elif echo "$method_val" | grep -qE '^(lambda\$|<init>|<clinit>)'; then
+                    pass "Line $line_num: method=\"$method_val\" (synthetic/constructor)"
+                else
+                    pass "Line $line_num: method=\"$method_val\" (Mojang name — correct for NeoForge)"
+                fi
+            done <<< "$NF_METHOD_REFS"
+        done
+    fi
+fi
 
 # ---------------------------------------------------------------------------
 # Summary
