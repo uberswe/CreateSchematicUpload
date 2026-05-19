@@ -413,7 +413,7 @@ public class SchematicIsometricRenderer {
         ImageWriter writer = ImageIO.getImageWritersByFormatName("jpeg").next();
         ImageWriteParam param = writer.getDefaultWriteParam();
         param.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-        param.setCompressionQuality(0.85f);
+        param.setCompressionQuality(0.60f);
         writer.setOutput(ImageIO.createImageOutputStream(baos));
         writer.write(null, new IIOImage(buffered, null, null), param);
         writer.dispose();
