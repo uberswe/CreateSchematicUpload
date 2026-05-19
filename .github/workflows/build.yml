@@ -36,6 +36,12 @@ jobs:
       - name: Test mixin target
         run: ./scripts/test-mixin-target.sh
 
+      - name: Test SchematicTableScreen mixin targets
+        run: |
+          if [ -f ./scripts/test-schematic-table-mixin.sh ]; then
+            ./scripts/test-schematic-table-mixin.sh
+          fi
+
       - name: Test Forge mixin refmap/SRG
         if: hashFiles('forge/') != ''
         run: |
