@@ -22,6 +22,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class SchematicUploadHandler {
@@ -87,12 +88,33 @@ public class SchematicUploadHandler {
 
         String fileName = filePath.getFileName().toString();
         byte[] fileBytes = Files.readAllBytes(filePath);
+        LOGGER.info("Read schematic file: {} ({} bytes)", fileName, fileBytes.length);
 
-        String boundary = "----SchematicUpload" + System.currentTimeMillis();
+        if (fileBytes.length == 0) {
+            LOGGER.error("Schematic file is empty: {}", filePath);
+            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+                    .withStyle(ChatFormatting.YELLOW));
+            return;
+        }
+
+        HttpResponse<String> response = sendUploadRequest(fileName, fileBytes, frames);
+        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
+
+        if (response.statusCode() != 200 && response.statusCode() != 409 && !frames.isEmpty()) {
+            LOGGER.warn("Upload with {} frames failed (HTTP {}), retrying without images", frames.size(), response.statusCode());
+            response = sendUploadRequest(fileName, fileBytes, List.of());
+            LOGGER.info("Retry response: HTTP {} — {}", response.statusCode(), response.body());
+        }
+
+        handleResponse(response, ConfigValues.baseUrl, frames.size());
+    }
+
+    private static HttpResponse<String> sendUploadRequest(String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
+        String boundary = UUID.randomUUID().toString();
         byte[] body = buildMultipartBody(boundary, fileName, fileBytes, frames);
 
         String baseUrl = ConfigValues.baseUrl;
-        LOGGER.info("Uploading {} ({} frames, {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
+        LOGGER.info("Sending upload: {} ({} frames, body {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
 
         long timestamp = System.currentTimeMillis() / 1000;
         Minecraft mc = Minecraft.getInstance();
@@ -100,19 +122,20 @@ public class SchematicUploadHandler {
         String message = timestamp + ":" + ConfigValues.modVersion + ":" + username + ":" + fileName;
         String signature = SchematicDownloadHandler.hmacSha256(message);
 
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .build();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/schematics/upload"))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("Content-Length", String.valueOf(body.length))
                 .header("X-Mod-Message", message)
                 .header("X-Mod-Signature", signature)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .timeout(Duration.ofMinutes(5))
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
-        handleResponse(response, baseUrl, frames.size());
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private static void handleResponse(HttpResponse<String> response, String baseUrl, int imageCount) {
@@ -154,35 +177,29 @@ public class SchematicUploadHandler {
     private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         String crlf = "\r\n";
+        String safeFileName = fileName.replace("\"", "").replace("\r", "").replace("\n", "");
 
-        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Type: application/octet-stream" + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-        baos.write(fileBytes);
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+        writePart(baos, boundary, crlf, "file", safeFileName, "application/octet-stream", fileBytes);
 
         for (RenderedFrame frame : frames) {
             if (frame.featured()) {
-                baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-                baos.write(frame.data());
-                baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+                writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
             }
-
-            baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Disposition: form-data; name=\"rotation_images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-            baos.write(frame.data());
-            baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+            writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
         }
 
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
-
         return baos.toByteArray();
+    }
+
+    private static void writePart(ByteArrayOutputStream baos, String boundary, String crlf,
+                                   String fieldName, String fileName, String contentType, byte[] data) throws Exception {
+        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + fileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Type: " + contentType + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+        baos.write(data);
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void saveFramesLocally(Path schematicPath, List<RenderedFrame> frames) {
