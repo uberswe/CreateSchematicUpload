@@ -57,7 +57,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         super(container, inv, title);
     }
 
-    @Inject(method = "init", at = @At("TAIL"))
+    // SRG name for init()V — refmap is not loaded at runtime on Forge
+    @Inject(method = "m_7856_", at = @At("TAIL"), remap = false)
     private void createschematichelper$addUrlField(CallbackInfo ci) {
         int x = this.leftPos;
         int y = this.topPos;
@@ -119,17 +120,18 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$modeButton.setIcon(localMode ? new DownloadIcon() : AllIcons.I_OPEN_FOLDER);
     }
 
-    @ModifyConstant(method = "init", constant = @Constant(intValue = 21, ordinal = 3))
+    @ModifyConstant(method = "m_7856_", constant = @Constant(intValue = 21, ordinal = 3), remap = false)
     private int createschematichelper$patchRefreshButtonY(int y) {
         return 32;
     }
 
     @Redirect(
-            method = "renderBg",
+            method = "m_7286_",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/gui/Font;drawShadow(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/network/chat/Component;FFI)I"
-            )
+                    target = "Lnet/minecraft/client/gui/Font;m_92763_(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/network/chat/Component;FFI)I"
+            ),
+            remap = false
     )
     private int createschematichelper$stopLabelRender(Font instance, PoseStack poseStack, Component text, float x, float y, int color) {
         if (!this.createschematichelper$urlField.isVisible()) {
@@ -139,11 +141,12 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     }
 
     @Redirect(
-            method = "renderBg",
+            method = "m_7286_",
             at = @At(
                     value = "INVOKE",
                     target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lcom/mojang/blaze3d/vertex/PoseStack;IILnet/minecraft/client/gui/GuiComponent;)V"
-            )
+            ),
+            remap = false
     )
     private void createschematichelper$patchRender(AllGuiTextures instance, PoseStack ms, int x, int y, GuiComponent component) {
         if (instance == AllGuiTextures.SCHEMATIC_TABLE && this.createschematichelper$urlField.isVisible()) {
