@@ -33,6 +33,10 @@ public class CreateSchematicHelperForge {
         ConfigValues.autoUpload = ForgeConfig.AUTO_UPLOAD.get();
         ConfigValues.baseUrl = ForgeConfig.BASE_URL.get();
         ConfigValues.render360 = ForgeConfig.RENDER_360.get();
+        ConfigValues.frameCount = ForgeConfig.FRAME_COUNT.get();
+        ConfigValues.aspectRatio = ForgeConfig.ASPECT_RATIO.get();
+        ConfigValues.overrideWidth = ForgeConfig.OVERRIDE_WIDTH.get();
+        ConfigValues.overrideHeight = ForgeConfig.OVERRIDE_HEIGHT.get();
         ConfigValues.saveFeaturedFrames = ForgeConfig.SAVE_FEATURED_FRAMES.get();
         ConfigValues.saveAllFrames = ForgeConfig.SAVE_ALL_FRAMES.get();
         ConfigValues.imageFormat = ForgeConfig.IMAGE_FORMAT.get();

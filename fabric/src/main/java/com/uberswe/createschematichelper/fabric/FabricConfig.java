@@ -26,6 +26,10 @@ public class FabricConfig {
                 if (obj.has("autoUpload")) ConfigValues.autoUpload = obj.get("autoUpload").getAsBoolean();
                 if (obj.has("baseUrl")) ConfigValues.baseUrl = obj.get("baseUrl").getAsString();
                 if (obj.has("render360")) ConfigValues.render360 = obj.get("render360").getAsBoolean();
+                if (obj.has("frameCount")) ConfigValues.frameCount = obj.get("frameCount").getAsInt();
+                if (obj.has("aspectRatio")) ConfigValues.aspectRatio = obj.get("aspectRatio").getAsString();
+                if (obj.has("overrideWidth")) ConfigValues.overrideWidth = obj.get("overrideWidth").getAsInt();
+                if (obj.has("overrideHeight")) ConfigValues.overrideHeight = obj.get("overrideHeight").getAsInt();
                 if (obj.has("saveFeaturedFrames")) ConfigValues.saveFeaturedFrames = obj.get("saveFeaturedFrames").getAsBoolean();
                 if (obj.has("saveAllFrames")) ConfigValues.saveAllFrames = obj.get("saveAllFrames").getAsBoolean();
                 if (obj.has("imageFormat")) ConfigValues.imageFormat = obj.get("imageFormat").getAsString();
@@ -44,6 +48,10 @@ public class FabricConfig {
             obj.addProperty("autoUpload", ConfigValues.autoUpload);
             obj.addProperty("baseUrl", ConfigValues.baseUrl);
             obj.addProperty("render360", ConfigValues.render360);
+            obj.addProperty("frameCount", ConfigValues.frameCount);
+            obj.addProperty("aspectRatio", ConfigValues.aspectRatio);
+            obj.addProperty("overrideWidth", ConfigValues.overrideWidth);
+            obj.addProperty("overrideHeight", ConfigValues.overrideHeight);
             obj.addProperty("saveFeaturedFrames", ConfigValues.saveFeaturedFrames);
             obj.addProperty("saveAllFrames", ConfigValues.saveAllFrames);
             obj.addProperty("imageFormat", ConfigValues.imageFormat);
