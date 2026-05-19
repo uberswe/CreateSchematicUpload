@@ -128,7 +128,6 @@ public class SchematicUploadHandler {
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/schematics/upload"))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
-                .header("Content-Length", String.valueOf(body.length))
                 .header("X-Mod-Message", message)
                 .header("X-Mod-Signature", signature)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
