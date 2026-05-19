@@ -46,6 +46,13 @@ public class SchematicIsometricRenderer {
     private static final int PIXELS_PER_BLOCK = 32;
     private static final int MAX_FB_SIZE = 2048;
     private static final int MIN_FB_SIZE = 256;
+    private static final int FRAMES_PER_BATCH = 8;
+
+    private static class DirectSchematicRenderer extends SchematicRenderer {
+        void buildBuffers() {
+            redraw();
+        }
+    }
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return CompletableFuture.supplyAsync(() -> {
@@ -61,112 +68,15 @@ public class SchematicIsometricRenderer {
         CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
 
         RenderSystem.recordRenderCall(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            RenderTarget renderTarget = null;
             try {
-                if (mc.level == null) {
+                RenderState state = setupRenderState(tag);
+                if (state == null) {
                     renderFuture.completeExceptionally(new IllegalStateException("No active world"));
                     return;
                 }
-
-                StructureTemplate template = new StructureTemplate();
-                template.load(tag);
-                Vec3i size = template.getSize();
-                int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
-
-                int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
-                int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
-                int fbW;
-                int fbH;
-                float effectivePixelWidth = PIXELS_PER_BLOCK;
-
-                if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
-                    fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
-                    fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
-                    effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
-                } else {
-                    if (theoreticalH > maxSupported) {
-                        fbH = maxSupported;
-                        effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
-                    } else {
-                        fbH = Math.max(MIN_FB_SIZE, theoreticalH);
-                    }
-                    int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
-                    fbW = fbH * ratio[0] / ratio[1];
-                }
-
-                renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
-
-                SchematicWorld schematicWorld = new SchematicWorld(BlockPos.ZERO, mc.level);
-                StructurePlaceSettings settings = new StructurePlaceSettings();
-                template.placeInWorld(schematicWorld, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
-
-                SchematicRenderer renderer = new SchematicRenderer();
-                renderer.display(schematicWorld);
-                renderer.tick();
-
-                Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f);
-                light0.normalize();
-                Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f);
-                light1.normalize();
-                RenderSystem.setShaderLights(light0, light1);
-
-                Matrix4f projectionMatrix = Matrix4f.orthographic(
-                        (float) fbW, (float) fbH, -10000f, 10000f
-                );
-                RenderSystem.setProjectionMatrix(projectionMatrix);
-
-                float scale = effectivePixelWidth / (float) Math.sqrt(2);
-
-                SuperRenderTypeBuffer buffers = SuperRenderTypeBuffer.getInstance();
-
-                float[] angles;
-                if (ConfigValues.render360) {
-                    int frameCount = Math.max(4, ConfigValues.frameCount);
-                    float degreesPerFrame = 360f / frameCount;
-                    angles = new float[frameCount];
-                    for (int i = 0; i < frameCount; i++) {
-                        angles[i] = START_ANGLE + i * degreesPerFrame;
-                    }
-                } else {
-                    angles = FEATURED_ANGLES;
-                }
-
                 List<NativeImage> images = new ArrayList<>();
-                for (int i = 0; i < angles.length; i++) {
-                    float yRot = angles[i];
-
-                    renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-                    renderTarget.clear(Minecraft.ON_OSX);
-                    renderTarget.bindWrite(true);
-
-                    PoseStack poseStack = new PoseStack();
-                    poseStack.pushPose();
-                    poseStack.translate(fbW / 2.0, fbH / 2.0, 0);
-                    poseStack.scale(scale, scale, scale);
-                    poseStack.mulPose(Vector3f.XP.rotationDegrees(ISOMETRIC_PITCH));
-                    poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
-                    poseStack.translate(-size.getX() / 2.0, -size.getY() / 2.0, -size.getZ() / 2.0);
-
-                    renderer.render(poseStack, buffers);
-                    buffers.draw();
-                    poseStack.popPose();
-
-                    NativeImage image = new NativeImage(fbW, fbH, false);
-                    RenderSystem.bindTexture(renderTarget.getColorTextureId());
-                    image.downloadTexture(0, false);
-                    image.flipY();
-                    images.add(image);
-                }
-
-                renderTarget.destroyBuffers();
-                mc.getMainRenderTarget().bindWrite(true);
-                renderFuture.complete(images);
+                renderBatch(state, 0, images, renderFuture);
             } catch (Exception e) {
-                if (renderTarget != null) {
-                    renderTarget.destroyBuffers();
-                    mc.getMainRenderTarget().bindWrite(true);
-                }
                 renderFuture.completeExceptionally(e);
             }
         });
@@ -174,6 +84,142 @@ public class SchematicIsometricRenderer {
         return renderFuture
                 .thenApplyAsync(SchematicIsometricRenderer::cropAndConvert)
                 .orTimeout(2, TimeUnit.MINUTES);
+    }
+
+    private static RenderState setupRenderState(CompoundTag tag) {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+
+        StructureTemplate template = new StructureTemplate();
+        template.load(tag);
+        Vec3i size = template.getSize();
+        int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
+
+        int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
+        int fbW, fbH;
+        float effectivePixelWidth = PIXELS_PER_BLOCK;
+
+        if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
+            fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
+            fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
+            effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
+        } else {
+            int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
+            if (theoreticalH > maxSupported) {
+                fbH = maxSupported;
+                effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
+            } else {
+                fbH = Math.max(MIN_FB_SIZE, theoreticalH);
+            }
+            int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
+            fbW = fbH * ratio[0] / ratio[1];
+        }
+
+        RenderTarget renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
+
+        SchematicWorld schematicWorld = new SchematicWorld(BlockPos.ZERO, mc.level);
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        template.placeInWorld(schematicWorld, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
+
+        DirectSchematicRenderer renderer = new DirectSchematicRenderer();
+        renderer.display(schematicWorld);
+        renderer.buildBuffers();
+
+        float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
+
+        float[] angles;
+        if (ConfigValues.render360) {
+            int frameCount = Math.max(4, ConfigValues.frameCount);
+            float degreesPerFrame = 360f / frameCount;
+            angles = new float[frameCount];
+            for (int i = 0; i < frameCount; i++) {
+                angles[i] = START_ANGLE + i * degreesPerFrame;
+            }
+        } else {
+            angles = FEATURED_ANGLES;
+        }
+
+        return new RenderState(renderTarget, renderer, size, fbW, fbH, scale, angles);
+    }
+
+    private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
+                                    CompletableFuture<List<NativeImage>> future) {
+        Minecraft mc = Minecraft.getInstance();
+        try {
+            int end = Math.min(startIndex + FRAMES_PER_BATCH, state.angles.length);
+
+            Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f);
+            light0.normalize();
+            Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f);
+            light1.normalize();
+            RenderSystem.setShaderLights(light0, light1);
+
+            Matrix4f projectionMatrix = Matrix4f.orthographic(
+                    (float) state.fbW, (float) state.fbH, -10000f, 10000f
+            );
+            RenderSystem.setProjectionMatrix(projectionMatrix);
+
+            SuperRenderTypeBuffer buffers = SuperRenderTypeBuffer.getInstance();
+
+            for (int i = startIndex; i < end; i++) {
+                float yRot = state.angles[i];
+
+                state.renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+                state.renderTarget.clear(Minecraft.ON_OSX);
+                state.renderTarget.bindWrite(true);
+
+                PoseStack poseStack = new PoseStack();
+                poseStack.pushPose();
+                poseStack.translate(state.fbW / 2.0, state.fbH / 2.0, 0);
+                poseStack.scale(state.scale, state.scale, state.scale);
+                poseStack.mulPose(Vector3f.XP.rotationDegrees(ISOMETRIC_PITCH));
+                poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
+                poseStack.translate(-state.size.getX() / 2.0, -state.size.getY() / 2.0, -state.size.getZ() / 2.0);
+
+                state.renderer.render(poseStack, buffers);
+                buffers.draw();
+                poseStack.popPose();
+
+                NativeImage image = new NativeImage(state.fbW, state.fbH, false);
+                RenderSystem.bindTexture(state.renderTarget.getColorTextureId());
+                image.downloadTexture(0, false);
+                image.flipY();
+                images.add(image);
+            }
+
+            if (end >= state.angles.length) {
+                state.renderTarget.destroyBuffers();
+                mc.getMainRenderTarget().bindWrite(true);
+                future.complete(images);
+            } else {
+                mc.getMainRenderTarget().bindWrite(true);
+                RenderSystem.recordRenderCall(() -> renderBatch(state, end, images, future));
+            }
+        } catch (Exception e) {
+            state.renderTarget.destroyBuffers();
+            mc.getMainRenderTarget().bindWrite(true);
+            future.completeExceptionally(e);
+        }
+    }
+
+    private static class RenderState {
+        final RenderTarget renderTarget;
+        final DirectSchematicRenderer renderer;
+        final Vec3i size;
+        final int fbW, fbH;
+        final float scale;
+        final float[] angles;
+
+        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer, Vec3i size,
+                    int fbW, int fbH, float scale, float[] angles) {
+            this.renderTarget = renderTarget;
+            this.renderer = renderer;
+            this.size = size;
+            this.fbW = fbW;
+            this.fbH = fbH;
+            this.scale = scale;
+            this.angles = angles;
+        }
     }
 
     private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages) {
@@ -391,5 +437,4 @@ public class SchematicIsometricRenderer {
         public boolean featured() { return featured; }
         public String mimeType() { return mimeType; }
     }
-
 }
