@@ -64,9 +64,13 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | `enabled` | `true` | Enable or disable the upload feature entirely |
 | `autoUpload` | `true` | Upload automatically on save (if `false`, a confirmation screen is shown) |
 | `baseUrl` | `https://createmod.com` | API base URL |
-| `render360` | `true` | Render 120-frame 360 rotation view (disable for faster uploads with only 4 featured angles) |
+| `render360` | `true` | Render 360° rotation view (disable for faster uploads with only 4 featured angles) |
+| `frameCount` | `120` | Number of frames in the 360° rotation view (min 4, max 720) |
+| `aspectRatio` | `16:9` | Aspect ratio for rendered images (e.g. `16:9`, `4:3`, `1:1`) |
+| `overrideWidth` | `0` | Override image width in pixels (0 = automatic based on schematic size) |
+| `overrideHeight` | `0` | Override image height in pixels (0 = automatic based on schematic size) |
 | `saveFeaturedFrames` | `false` | Save the 4 featured perspective images locally to the schematics folder |
-| `saveAllFrames` | `false` | Save all 120 rotation frames locally to the schematics folder |
+| `saveAllFrames` | `false` | Save all rotation frames locally to the schematics folder |
 | `imageFormat` | `jpeg` | Image format for rendered frames: `jpeg` (smaller files, recommended) or `png` (lossless) |
 
 ## How It Works

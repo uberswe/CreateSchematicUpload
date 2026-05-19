@@ -38,6 +38,10 @@ public class CreateSchematicHelperNeoForge {
         ConfigValues.autoUpload = NeoForgeConfig.AUTO_UPLOAD.get();
         ConfigValues.baseUrl = NeoForgeConfig.BASE_URL.get();
         ConfigValues.render360 = NeoForgeConfig.RENDER_360.get();
+        ConfigValues.frameCount = NeoForgeConfig.FRAME_COUNT.get();
+        ConfigValues.aspectRatio = NeoForgeConfig.ASPECT_RATIO.get();
+        ConfigValues.overrideWidth = NeoForgeConfig.OVERRIDE_WIDTH.get();
+        ConfigValues.overrideHeight = NeoForgeConfig.OVERRIDE_HEIGHT.get();
         ConfigValues.saveFeaturedFrames = NeoForgeConfig.SAVE_FEATURED_FRAMES.get();
         ConfigValues.saveAllFrames = NeoForgeConfig.SAVE_ALL_FRAMES.get();
         ConfigValues.imageFormat = NeoForgeConfig.IMAGE_FORMAT.get();
