@@ -107,7 +107,7 @@ public class SchematicIsometricRenderer {
 
                 SchematicRenderer renderer = new SchematicRenderer();
                 renderer.display(schematicWorld);
-                renderer.update();
+                renderer.tick();
 
                 Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f);
                 light0.normalize();
