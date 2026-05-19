@@ -57,7 +57,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         super(container, inv, title);
     }
 
-    @Inject(method = "init", at = @At("TAIL"))
+    // SRG name for init()V — refmap is not loaded at runtime on Forge
+    @Inject(method = "m_7856_", at = @At("TAIL"), remap = false)
     private void createschematichelper$addUrlField(CallbackInfo ci, @Local(name = "x") int x, @Local(name = "y") int y) {
         this.createschematichelper$urlField = new EditBox(this.font, x + 26, y + 26, 154, 18, CommonComponents.EMPTY);
         this.createschematichelper$urlField.setMaxLength(255);
@@ -81,7 +82,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$toggleMode();
     }
 
-    @Inject(method = "lambda$init$0", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "lambda$init$0", at = @At("HEAD"), cancellable = true, remap = false)
     private void createschematichelper$downloadSchematic(CallbackInfo ci) {
         if (!menu.canWrite() || !this.createschematichelper$urlField.isVisible()) {
             return;
@@ -117,17 +118,17 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$modeButton.setIcon(localMode ? new DownloadIcon() : AllIcons.I_OPEN_FOLDER);
     }
 
-    @ModifyConstant(method = "init", constant = @Constant(intValue = 206))
+    @ModifyConstant(method = "m_7856_", constant = @Constant(intValue = 206), remap = false)
     private int createschematichelper$patchRefreshButtonX(int x) {
         return x + 2;
     }
 
-    @ModifyConstant(method = "init", constant = @Constant(intValue = 21, ordinal = 2))
+    @ModifyConstant(method = "m_7856_", constant = @Constant(intValue = 21, ordinal = 2), remap = false)
     private int createschematichelper$patchRefreshButtonY(int y) {
         return 32;
     }
 
-    @WrapOperation(method = "renderBg", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;III)I"))
+    @WrapOperation(method = "m_7286_", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;m_280430_(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;III)I"), remap = false)
     private int createschematichelper$stopLabelRender(GuiGraphics instance, Font font, Component text, int x, int y, int color, Operation<Integer> original) {
         if (!this.createschematichelper$urlField.isVisible()) {
             return original.call(instance, font, text, x, y, color);
@@ -135,7 +136,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         return 0;
     }
 
-    @WrapOperation(method = "renderBg", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;drawString(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)I"))
+    @WrapOperation(method = "m_7286_", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/GuiGraphics;m_280614_(Lnet/minecraft/client/gui/Font;Lnet/minecraft/network/chat/Component;IIIZ)I"), remap = false)
     private int createschematichelper$patchTitle(GuiGraphics instance, Font font, Component text, int x, int y, int color, boolean shadow, Operation<Integer> original) {
         if (this.createschematichelper$urlField.isVisible()) {
             return original.call(instance, font, createschematichelper$PROCESSING_TITLE, x, y, color, shadow);
@@ -143,7 +144,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         return original.call(instance, font, text, x, y, color, shadow);
     }
 
-    @WrapOperation(method = "renderBg", at = @At(value = "INVOKE", target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/client/gui/GuiGraphics;II)V"))
+    @WrapOperation(method = "m_7286_", at = @At(value = "INVOKE", target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/client/gui/GuiGraphics;II)V"), remap = false)
     private void createschematichelper$patchRender(AllGuiTextures instance, GuiGraphics graphics, int x, int y, Operation<Void> original) {
         if (instance == AllGuiTextures.SCHEMATIC_TABLE && this.createschematichelper$urlField.isVisible()) {
             graphics.blit(createschematichelper$TABLE_TEXTURE, x, y, 0, 0, AllGuiTextures.SCHEMATIC_TABLE.getWidth(), AllGuiTextures.SCHEMATIC_TABLE.getHeight());
