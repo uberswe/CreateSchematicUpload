@@ -44,8 +44,6 @@ public class SchematicIsometricRenderer {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final float ISOMETRIC_PITCH = 35.264f;
 
-    private static final int FRAME_COUNT = 120;
-    private static final float DEGREES_PER_FRAME = 360f / FRAME_COUNT;
     private static final float START_ANGLE = 45f;
     private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
 
@@ -82,16 +80,24 @@ public class SchematicIsometricRenderer {
 
                 int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
                 int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
+                int fbW;
                 int fbH;
                 float effectivePixelWidth = PIXELS_PER_BLOCK;
 
-                if (theoreticalH > maxSupported) {
-                    fbH = maxSupported;
-                    effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
+                if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
+                    fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
+                    fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
+                    effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
                 } else {
-                    fbH = Math.max(MIN_FB_SIZE, theoreticalH);
+                    if (theoreticalH > maxSupported) {
+                        fbH = maxSupported;
+                        effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
+                    } else {
+                        fbH = Math.max(MIN_FB_SIZE, theoreticalH);
+                    }
+                    int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
+                    fbW = fbH * ratio[0] / ratio[1];
                 }
-                int fbW = fbH * 16 / 9;
 
                 renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
 
@@ -121,9 +127,11 @@ public class SchematicIsometricRenderer {
 
                 float[] angles;
                 if (ConfigValues.render360) {
-                    angles = new float[FRAME_COUNT];
-                    for (int i = 0; i < FRAME_COUNT; i++) {
-                        angles[i] = START_ANGLE + i * DEGREES_PER_FRAME;
+                    int frameCount = Math.max(4, ConfigValues.frameCount);
+                    float degreesPerFrame = 360f / frameCount;
+                    angles = new float[frameCount];
+                    for (int i = 0; i < frameCount; i++) {
+                        angles[i] = START_ANGLE + i * degreesPerFrame;
                     }
                 } else {
                     angles = FEATURED_ANGLES;
@@ -235,7 +243,8 @@ public class SchematicIsometricRenderer {
         }
         Set<Integer> indices = new java.util.HashSet<>();
         for (float angle : FEATURED_ANGLES) {
-            indices.add(Math.round((angle - START_ANGLE) / DEGREES_PER_FRAME));
+            float degreesPerFrame = 360f / Math.max(4, frameCount);
+            indices.add(Math.round((angle - START_ANGLE) / degreesPerFrame));
         }
         return indices;
     }
@@ -353,6 +362,18 @@ public class SchematicIsometricRenderer {
     }
 
     public record RenderedFrame(String filename, byte[] data, boolean featured, String mimeType) {}
+
+    private static int[] parseAspectRatio(String ratio) {
+        if (ratio != null && ratio.contains(":")) {
+            String[] parts = ratio.split(":");
+            try {
+                int w = Integer.parseInt(parts[0].trim());
+                int h = Integer.parseInt(parts[1].trim());
+                if (w > 0 && h > 0) return new int[]{w, h};
+            } catch (NumberFormatException ignored) {}
+        }
+        return new int[]{16, 9};
+    }
 
     private static class FixedLightSchematicWorld extends SchematicWorld {
         private final Level wrappedLevel;
