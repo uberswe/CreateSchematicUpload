@@ -8,6 +8,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
+import net.minecraft.network.chat.TranslatableComponent;
 import org.slf4j.Logger;
 
 import com.uberswe.createschematichelper.SchematicIsometricRenderer.RenderedFrame;
@@ -22,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 public class SchematicUploadHandler {
@@ -44,19 +47,19 @@ public class SchematicUploadHandler {
     }
 
     private static void uploadAsync(Path filePath) {
-        sendChatMessage(Component.translatable("createschematichelper.upload.rendering")
+        sendChatMessage(new TranslatableComponent("createschematichelper.upload.rendering")
                 .withStyle(ChatFormatting.GRAY));
 
         SchematicIsometricRenderer.render360(filePath)
                 .thenAcceptAsync(frames -> {
                     try {
                         saveFramesLocally(filePath, frames);
-                        sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
+                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
                                 .withStyle(ChatFormatting.GRAY));
                         upload(filePath, frames);
                     } catch (Exception e) {
                         LOGGER.error("Failed to upload schematic", e);
-                        sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
                                 .withStyle(ChatFormatting.YELLOW));
                     }
                 })
@@ -64,12 +67,12 @@ public class SchematicUploadHandler {
                     LOGGER.error("Failed to render previews, uploading without images", ex);
                     CompletableFuture.runAsync(() -> {
                         try {
-                            sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
+                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
                                     .withStyle(ChatFormatting.GRAY));
                             upload(filePath, List.of());
                         } catch (Exception e) {
                             LOGGER.error("Failed to upload schematic", e);
-                            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
                                     .withStyle(ChatFormatting.YELLOW));
                         }
                     });
@@ -80,19 +83,40 @@ public class SchematicUploadHandler {
     private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
         long fileSize = Files.size(filePath);
         if (fileSize > MAX_FILE_SIZE) {
-            sendChatMessage(Component.translatable("createschematichelper.upload.too_large")
+            sendChatMessage(new TranslatableComponent("createschematichelper.upload.too_large")
                     .withStyle(ChatFormatting.RED));
             return;
         }
 
         String fileName = filePath.getFileName().toString();
         byte[] fileBytes = Files.readAllBytes(filePath);
+        LOGGER.info("Read schematic file: {} ({} bytes)", fileName, fileBytes.length);
 
-        String boundary = "----SchematicUpload" + System.currentTimeMillis();
+        if (fileBytes.length == 0) {
+            LOGGER.error("Schematic file is empty: {}", filePath);
+            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+                    .withStyle(ChatFormatting.YELLOW));
+            return;
+        }
+
+        HttpResponse<String> response = sendUploadRequest(fileName, fileBytes, frames);
+        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
+
+        if (response.statusCode() != 200 && response.statusCode() != 409 && !frames.isEmpty()) {
+            LOGGER.warn("Upload with {} frames failed (HTTP {}), retrying without images", frames.size(), response.statusCode());
+            response = sendUploadRequest(fileName, fileBytes, List.of());
+            LOGGER.info("Retry response: HTTP {} — {}", response.statusCode(), response.body());
+        }
+
+        handleResponse(response, ConfigValues.baseUrl, frames.size());
+    }
+
+    private static HttpResponse<String> sendUploadRequest(String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
+        String boundary = UUID.randomUUID().toString();
         byte[] body = buildMultipartBody(boundary, fileName, fileBytes, frames);
 
         String baseUrl = ConfigValues.baseUrl;
-        LOGGER.info("Uploading {} ({} frames, {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
+        LOGGER.info("Sending upload: {} ({} frames, body {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
 
         long timestamp = System.currentTimeMillis() / 1000;
         Minecraft mc = Minecraft.getInstance();
@@ -100,19 +124,20 @@ public class SchematicUploadHandler {
         String message = timestamp + ":" + ConfigValues.modVersion + ":" + username + ":" + fileName;
         String signature = SchematicDownloadHandler.hmacSha256(message);
 
-        HttpClient client = HttpClient.newHttpClient();
+        HttpClient client = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .build();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/schematics/upload"))
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+                .header("Content-Length", String.valueOf(body.length))
                 .header("X-Mod-Message", message)
                 .header("X-Mod-Signature", signature)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                 .timeout(Duration.ofMinutes(5))
                 .build();
 
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        LOGGER.info("Upload response: HTTP {} -- {}", response.statusCode(), response.body());
-        handleResponse(response, baseUrl, frames.size());
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private static void handleResponse(HttpResponse<String> response, String baseUrl, int imageCount) {
@@ -126,9 +151,9 @@ public class SchematicUploadHandler {
                 String token = json.get("token").getAsString();
                 String url = baseUrl + "/u/" + token;
 
-                MutableComponent prefix = Component.translatable("createschematichelper.upload.success")
+                MutableComponent prefix = new TranslatableComponent("createschematichelper.upload.success")
                         .withStyle(ChatFormatting.GREEN);
-                MutableComponent link = Component.literal(url)
+                MutableComponent link = new TextComponent(url)
                         .withStyle(style -> style
                                 .withColor(ChatFormatting.AQUA)
                                 .withUnderlined(true)
@@ -136,17 +161,17 @@ public class SchematicUploadHandler {
 
                 sendChatMessage(prefix.append(link));
             } else if (status == 409) {
-                sendChatMessage(Component.translatable("createschematichelper.upload.already_exists")
+                sendChatMessage(new TranslatableComponent("createschematichelper.upload.already_exists")
                         .withStyle(ChatFormatting.YELLOW));
             } else {
                 String error = json.has("error") ? json.get("error").getAsString() : "Unknown error";
                 LOGGER.error("Upload failed (HTTP {}): {}", status, error);
-                sendChatMessage(Component.translatable("createschematichelper.upload.error", error)
+                sendChatMessage(new TranslatableComponent("createschematichelper.upload.error", error)
                         .withStyle(ChatFormatting.YELLOW));
             }
         } catch (Exception e) {
             LOGGER.error("Failed to parse upload response (HTTP {})", status, e);
-            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
                     .withStyle(ChatFormatting.YELLOW));
         }
     }
@@ -154,35 +179,29 @@ public class SchematicUploadHandler {
     private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         String crlf = "\r\n";
+        String safeFileName = fileName.replace("\"", "").replace("\r", "").replace("\n", "");
 
-        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + fileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Type: application/octet-stream" + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-        baos.write(fileBytes);
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+        writePart(baos, boundary, crlf, "file", safeFileName, "application/octet-stream", fileBytes);
 
         for (RenderedFrame frame : frames) {
             if (frame.featured()) {
-                baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(("Content-Disposition: form-data; name=\"images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
-                baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-                baos.write(frame.data());
-                baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+                writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
             }
-
-            baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Disposition: form-data; name=\"rotation_images\"; filename=\"" + frame.filename() + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(("Content-Type: " + frame.mimeType() + crlf).getBytes(StandardCharsets.UTF_8));
-            baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-            baos.write(frame.data());
-            baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+            writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
         }
 
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
-
         return baos.toByteArray();
+    }
+
+    private static void writePart(ByteArrayOutputStream baos, String boundary, String crlf,
+                                   String fieldName, String fileName, String contentType, byte[] data) throws Exception {
+        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + fileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Type: " + contentType + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+        baos.write(data);
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
     }
 
     private static void saveFramesLocally(Path schematicPath, List<RenderedFrame> frames) {
