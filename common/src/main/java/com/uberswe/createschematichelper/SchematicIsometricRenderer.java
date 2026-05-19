@@ -18,8 +18,6 @@ import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LightLayer;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -54,6 +52,7 @@ public class SchematicIsometricRenderer {
     private static final int PIXELS_PER_BLOCK = 32;
     private static final int MAX_FB_SIZE = 2048;
     private static final int MIN_FB_SIZE = 256;
+    private static final int FRAMES_PER_BATCH = 8;
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return CompletableFuture.supplyAsync(() -> {
@@ -62,123 +61,162 @@ public class SchematicIsometricRenderer {
             } catch (Exception e) {
                 throw new RuntimeException("Failed to read NBT file", e);
             }
-        }).thenCompose((CompoundTag tag) -> SchematicIsometricRenderer.render360(tag));
+        }).thenCompose(SchematicIsometricRenderer::render360);
+    }
+
+    /**
+     * Holds all state needed across render batches.
+     */
+    private record RenderState(
+            Minecraft mc,
+            RenderTarget renderTarget,
+            SchematicRenderer renderer,
+            SuperRenderTypeBuffer buffers,
+            float[] angles,
+            Vec3i size,
+            float scale,
+            int fbW,
+            int fbH
+    ) {}
+
+    private static RenderState setupRenderState(CompoundTag tag) {
+        Minecraft mc = Minecraft.getInstance();
+
+        if (mc.level == null) {
+            throw new IllegalStateException("No active world");
+        }
+
+        StructureTemplate template = new StructureTemplate();
+        template.load(mc.level.registryAccess().lookupOrThrow(Registries.BLOCK), tag);
+        Vec3i size = template.getSize();
+        int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
+
+        int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
+        int fbW, fbH;
+        float effectivePixelWidth = PIXELS_PER_BLOCK;
+
+        if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
+            fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
+            fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
+            effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
+        } else {
+            int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
+            if (theoreticalH > maxSupported) {
+                fbH = maxSupported;
+                effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
+            } else {
+                fbH = Math.max(MIN_FB_SIZE, theoreticalH);
+            }
+            int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
+            fbW = fbH * ratio[0] / ratio[1];
+        }
+
+        RenderTarget renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
+
+        SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, mc.level);
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
+
+        SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
+
+        Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
+        Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
+        RenderSystem.setShaderLights(light0, light1);
+
+        Matrix4f projectionMatrix = new Matrix4f().setOrtho(
+                -fbW / 2f, fbW / 2f,
+                -fbH / 2f, fbH / 2f,
+                -10000f, 10000f
+        );
+        RenderSystem.setProjectionMatrix(projectionMatrix, RenderSystem.getVertexSorting());
+
+        float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
+
+        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
+        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
+            @Override public @NotNull VertexConsumer getEarlyBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public @NotNull VertexConsumer getLateBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public void draw() { mcBuffers.endBatch(); }
+            @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
+        };
+
+        float[] angles;
+        if (ConfigValues.render360) {
+            int frameCount = Math.max(4, ConfigValues.frameCount);
+            float degreesPerFrame = 360f / frameCount;
+            angles = new float[frameCount];
+            for (int i = 0; i < frameCount; i++) {
+                angles[i] = START_ANGLE + i * degreesPerFrame;
+            }
+        } else {
+            angles = FEATURED_ANGLES;
+        }
+
+        return new RenderState(mc, renderTarget, renderer, buffers, angles, size, scale, fbW, fbH);
+    }
+
+    private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
+                                     CompletableFuture<List<NativeImage>> future) {
+        try {
+            int end = Math.min(startIndex + FRAMES_PER_BATCH, state.angles.length);
+
+            for (int i = startIndex; i < end; i++) {
+                float yRot = state.angles[i];
+
+                state.renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+                state.renderTarget.clear(Minecraft.ON_OSX);
+                state.renderTarget.bindWrite(true);
+
+                PoseStack poseStack = new PoseStack();
+                poseStack.pushPose();
+                poseStack.scale(state.scale, state.scale, state.scale);
+                poseStack.mulPose(Axis.XP.rotationDegrees(ISOMETRIC_PITCH));
+                poseStack.mulPose(Axis.YP.rotationDegrees(yRot));
+                poseStack.translate(
+                        -state.size.getX() / 2f,
+                        -state.size.getY() / 2f,
+                        -state.size.getZ() / 2f
+                );
+
+                state.renderer.render(poseStack, state.buffers);
+                state.buffers.draw();
+                poseStack.popPose();
+
+                NativeImage image = new NativeImage(state.fbW, state.fbH, false);
+                RenderSystem.bindTexture(state.renderTarget.getColorTextureId());
+                image.downloadTexture(0, false);
+                image.flipY();
+                images.add(image);
+            }
+
+            // Restore main render target so the game can render its frame between batches
+            state.mc.getMainRenderTarget().bindWrite(true);
+
+            if (end < state.angles.length) {
+                // Schedule next batch
+                RenderSystem.recordRenderCall(() -> renderBatch(state, end, images, future));
+            } else {
+                // All frames rendered — clean up and complete
+                state.renderTarget.destroyBuffers();
+                future.complete(images);
+            }
+        } catch (Exception e) {
+            state.renderTarget.destroyBuffers();
+            state.mc.getMainRenderTarget().bindWrite(true);
+            future.completeExceptionally(e);
+        }
     }
 
     public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag) {
         CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
 
         RenderSystem.recordRenderCall(() -> {
-            Minecraft mc = Minecraft.getInstance();
-            RenderTarget renderTarget = null;
             try {
-                if (mc.level == null) {
-                    renderFuture.completeExceptionally(new IllegalStateException("No active world"));
-                    return;
-                }
-
-                StructureTemplate template = new StructureTemplate();
-                template.load(mc.level.registryAccess().lookupOrThrow(Registries.BLOCK), tag);
-                Vec3i size = template.getSize();
-                int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
-
-                int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
-                int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
-                int fbW;
-                int fbH;
-                float effectivePixelWidth = PIXELS_PER_BLOCK;
-
-                if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
-                    fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
-                    fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
-                    effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
-                } else {
-                    if (theoreticalH > maxSupported) {
-                        fbH = maxSupported;
-                        effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
-                    } else {
-                        fbH = Math.max(MIN_FB_SIZE, theoreticalH);
-                    }
-                    int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
-                    fbW = fbH * ratio[0] / ratio[1];
-                }
-
-                renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
-
-                SchematicLevel schematicLevel = new FixedLightSchematicLevel(BlockPos.ZERO, mc.level);
-                StructurePlaceSettings settings = new StructurePlaceSettings();
-                template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
-
-                SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
-
-                Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
-                Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
-                RenderSystem.setShaderLights(light0, light1);
-
-                Matrix4f projectionMatrix = new Matrix4f().setOrtho(
-                        -fbW / 2f, fbW / 2f,
-                        -fbH / 2f, fbH / 2f,
-                        -10000f, 10000f
-                );
-                RenderSystem.setProjectionMatrix(projectionMatrix, RenderSystem.getVertexSorting());
-
-                float scale = effectivePixelWidth / (float) Math.sqrt(2);
-
-                MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
-                SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
-                    @Override public @NotNull VertexConsumer getEarlyBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-                    @Override public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-                    @Override public @NotNull VertexConsumer getLateBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-                    @Override public void draw() { mcBuffers.endBatch(); }
-                    @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
-                };
-
-                float[] angles;
-                if (ConfigValues.render360) {
-                    int frameCount = Math.max(4, ConfigValues.frameCount);
-                    float degreesPerFrame = 360f / frameCount;
-                    angles = new float[frameCount];
-                    for (int i = 0; i < frameCount; i++) {
-                        angles[i] = START_ANGLE + i * degreesPerFrame;
-                    }
-                } else {
-                    angles = FEATURED_ANGLES;
-                }
-
+                RenderState state = setupRenderState(tag);
                 List<NativeImage> images = new ArrayList<>();
-                for (int i = 0; i < angles.length; i++) {
-                    float yRot = angles[i];
-
-                    renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-                    renderTarget.clear(Minecraft.ON_OSX);
-                    renderTarget.bindWrite(true);
-
-                    PoseStack poseStack = new PoseStack();
-                    poseStack.pushPose();
-                    poseStack.scale(scale, scale, scale);
-                    poseStack.mulPose(Axis.XP.rotationDegrees(ISOMETRIC_PITCH));
-                    poseStack.mulPose(Axis.YP.rotationDegrees(yRot));
-                    poseStack.translate(-size.getX() / 2f, -size.getY() / 2f, -size.getZ() / 2f);
-
-                    renderer.render(poseStack, buffers);
-                    buffers.draw();
-                    poseStack.popPose();
-
-                    NativeImage image = new NativeImage(fbW, fbH, false);
-                    RenderSystem.bindTexture(renderTarget.getColorTextureId());
-                    image.downloadTexture(0, false);
-                    image.flipY();
-                    images.add(image);
-                }
-
-                renderTarget.destroyBuffers();
-                mc.getMainRenderTarget().bindWrite(true);
-                renderFuture.complete(images);
+                renderBatch(state, 0, images, renderFuture);
             } catch (Exception e) {
-                if (renderTarget != null) {
-                    renderTarget.destroyBuffers();
-                    mc.getMainRenderTarget().bindWrite(true);
-                }
                 renderFuture.completeExceptionally(e);
             }
         });
@@ -249,12 +287,24 @@ public class SchematicIsometricRenderer {
             for (int i = 0; i < frameCount; i++) all.add(i);
             return all;
         }
+        float degreesPerFrame = 360f / frameCount;
         Set<Integer> indices = new java.util.HashSet<>();
         for (float angle : FEATURED_ANGLES) {
-            float degreesPerFrame = 360f / Math.max(4, frameCount);
             indices.add(Math.round((angle - START_ANGLE) / degreesPerFrame));
         }
         return indices;
+    }
+
+    private static int[] parseAspectRatio(String ratio) {
+        if (ratio != null && ratio.contains(":")) {
+            String[] parts = ratio.split(":");
+            try {
+                int w = Integer.parseInt(parts[0].trim());
+                int h = Integer.parseInt(parts[1].trim());
+                if (w > 0 && h > 0) return new int[]{w, h};
+            } catch (NumberFormatException ignored) {}
+        }
+        return new int[]{16, 9};
     }
 
     private static NativeImage generateBlueprintBackground(int w, int h) {
@@ -369,58 +419,5 @@ public class SchematicIsometricRenderer {
         return baos.toByteArray();
     }
 
-    private static int[] parseAspectRatio(String ratio) {
-        if (ratio != null && ratio.contains(":")) {
-            String[] parts = ratio.split(":");
-            try {
-                int w = Integer.parseInt(parts[0].trim());
-                int h = Integer.parseInt(parts[1].trim());
-                if (w > 0 && h > 0) return new int[]{w, h};
-            } catch (NumberFormatException ignored) {}
-        }
-        return new int[]{16, 9};
-    }
-
     public record RenderedFrame(String filename, byte[] data, boolean featured, String mimeType) {}
-
-    private static class FixedLightSchematicLevel extends SchematicLevel {
-        public FixedLightSchematicLevel(BlockPos anchor, Level level) {
-            super(anchor, level);
-        }
-
-        @Override
-        public int getBrightness(@NotNull LightLayer layer, @NotNull BlockPos pos) {
-            return 15;
-        }
-
-        @Override
-        public int getMaxLocalRawBrightness(@NotNull BlockPos pos) {
-            return 15;
-        }
-
-        @Override
-        public int getSkyDarken() {
-            return 0;
-        }
-
-        @Override
-        public boolean isRaining() {
-            return false;
-        }
-
-        @Override
-        public boolean isThundering() {
-            return false;
-        }
-
-        @Override
-        public float getRainLevel(float delta) {
-            return 0f;
-        }
-
-        @Override
-        public float getThunderLevel(float delta) {
-            return 0f;
-        }
-    }
 }
