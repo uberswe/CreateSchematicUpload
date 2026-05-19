@@ -5,12 +5,15 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import com.simibubi.create.content.schematics.SchematicWorld;
 import com.simibubi.create.content.schematics.client.SchematicRenderer;
 import com.simibubi.create.foundation.render.SuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
@@ -54,7 +57,9 @@ public class SchematicIsometricRenderer {
 
     private static class DirectSchematicRenderer extends SchematicRenderer {
         void buildBuffers() {
+            LOGGER.info("Building render buffers for schematic");
             redraw();
+            LOGGER.info("Render buffers built");
         }
     }
 
@@ -131,6 +136,34 @@ public class SchematicIsometricRenderer {
 
         float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
 
+        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
+        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
+            @Override
+            public VertexConsumer getEarlyBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public VertexConsumer getBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public VertexConsumer getLateBuffer(RenderType type) {
+                return mcBuffers.getBuffer(type);
+            }
+
+            @Override
+            public void draw() {
+                mcBuffers.endBatch();
+            }
+
+            @Override
+            public void draw(RenderType type) {
+                mcBuffers.endBatch(type);
+            }
+        };
+
         float[] angles;
         if (ConfigValues.render360) {
             int frameCount = Math.max(4, ConfigValues.frameCount);
@@ -143,7 +176,8 @@ public class SchematicIsometricRenderer {
             angles = FEATURED_ANGLES;
         }
 
-        return new RenderState(renderTarget, renderer, size, fbW, fbH, scale, angles);
+        LOGGER.info("Render state ready: {}x{} framebuffer, scale={}, {} frames", fbW, fbH, scale, angles.length);
+        return new RenderState(renderTarget, renderer, buffers, size, fbW, fbH, scale, angles);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -163,8 +197,6 @@ public class SchematicIsometricRenderer {
             );
             RenderSystem.setProjectionMatrix(projectionMatrix);
 
-            SuperRenderTypeBuffer buffers = SuperRenderTypeBuffer.getInstance();
-
             for (int i = startIndex; i < end; i++) {
                 float yRot = state.angles[i];
 
@@ -180,8 +212,8 @@ public class SchematicIsometricRenderer {
                 poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
                 poseStack.translate(-state.size.getX() / 2.0, -state.size.getY() / 2.0, -state.size.getZ() / 2.0);
 
-                state.renderer.render(poseStack, buffers);
-                buffers.draw();
+                state.renderer.render(poseStack, state.buffers);
+                state.buffers.draw();
                 poseStack.popPose();
 
                 NativeImage image = new NativeImage(state.fbW, state.fbH, false);
@@ -209,15 +241,18 @@ public class SchematicIsometricRenderer {
     private static class RenderState {
         final RenderTarget renderTarget;
         final DirectSchematicRenderer renderer;
+        final SuperRenderTypeBuffer buffers;
         final Vec3i size;
         final int fbW, fbH;
         final float scale;
         final float[] angles;
 
-        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer, Vec3i size,
+        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer,
+                    SuperRenderTypeBuffer buffers, Vec3i size,
                     int fbW, int fbH, float scale, float[] angles) {
             this.renderTarget = renderTarget;
             this.renderer = renderer;
+            this.buffers = buffers;
             this.size = size;
             this.fbW = fbW;
             this.fbH = fbH;
