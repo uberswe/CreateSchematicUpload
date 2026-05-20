@@ -125,7 +125,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     }
 
     @Redirect(
-            method = "method_25394",
+            method = "method_2389",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/class_327;method_30881(Lnet/minecraft/class_4587;Lnet/minecraft/class_2561;FFI)I"
@@ -140,7 +140,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     }
 
     @Redirect(
-            method = "method_25394",
+            method = "method_2389",
             at = @At(
                     value = "INVOKE",
                     target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/class_4587;IILnet/minecraft/class_332;)V"
