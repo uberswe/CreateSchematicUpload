@@ -4,7 +4,7 @@ plugins {
 }
 
 base {
-    archivesName = "${project.mod_id}-forge"
+    archivesName = "${project.mod_id}-forge-mc${project.minecraft_version}"
 }
 
 legacyForge {
