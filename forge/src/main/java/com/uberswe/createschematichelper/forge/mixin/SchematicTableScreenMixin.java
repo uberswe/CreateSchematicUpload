@@ -69,14 +69,6 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$urlField.setTextColor(-1);
         this.createschematichelper$urlField.setTextColorUneditable(-1);
         this.createschematichelper$urlField.setBordered(false);
-        this.createschematichelper$urlField.setSuggestion(createschematichelper$URL_FIELD_HINT.getString());
-        this.createschematichelper$urlField.setResponder(s -> {
-            if (s.isEmpty()) {
-                this.createschematichelper$urlField.setSuggestion(createschematichelper$URL_FIELD_HINT.getString());
-            } else {
-                this.createschematichelper$urlField.setSuggestion(null);
-            }
-        });
         this.addRenderableWidget(this.createschematichelper$urlField);
 
         this.createschematichelper$modeButton = new IconButton(x + 207, y + 11, AllIcons.I_OPEN_FOLDER);
@@ -155,6 +147,18 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             blit(poseStack, x, y, 0, 0, 214, 85);
         } else {
             instance.render(poseStack, x, y, guiComponent);
+        }
+    }
+
+    @Inject(method = "m_7286_", at = @At("TAIL"), remap = false)
+    private void createschematichelper$renderHint(PoseStack poseStack, float partialTick, int mouseX, int mouseY, CallbackInfo ci) {
+        if (this.createschematichelper$urlField != null
+                && this.createschematichelper$urlField.isVisible()
+                && this.createschematichelper$urlField.getValue().isEmpty()) {
+            this.font.drawShadow(poseStack, createschematichelper$URL_FIELD_HINT.getString(),
+                    this.createschematichelper$urlField.x + 2,
+                    this.createschematichelper$urlField.y + 3,
+                    0xCCCCCC);
         }
     }
 }
