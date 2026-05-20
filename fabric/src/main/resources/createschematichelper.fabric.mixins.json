@@ -1,0 +1,12 @@
+{
+  "required": true,
+  "package": "com.uberswe.createschematichelper.fabric.mixin",
+  "compatibilityLevel": "JAVA_17",
+  "minVersion": "0.8",
+  "client": [
+    "SchematicTableScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
