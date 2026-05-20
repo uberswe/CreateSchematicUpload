@@ -196,21 +196,10 @@ jobs:
         with:
           path: artifacts
 
-      - name: Rename JARs to include MC version
+      - name: Collect JARs
         run: |
           mkdir -p release-jars
-          for dir in artifacts/*/; do
-            # dir name is like "forge-1.18.2" or "fabric-1.21.1"
-            dir_name=$(basename "$dir")
-            mc_version=${dir_name##*-}
-            for jar in "$dir"*.jar; do
-              [ -f "$jar" ] || continue
-              filename=$(basename "$jar")
-              # Insert MC version: foo-1.1.0.jar -> foo-mc1.18.2-1.1.0.jar
-              new_name=$(echo "$filename" | sed "s/-\([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\.jar\)/-mc${mc_version}-\1/")
-              cp "$jar" "release-jars/${new_name}"
-            done
-          done
+          find artifacts -name '*.jar' -exec cp {} release-jars/ \;
           echo "Release JARs:"
           ls -la release-jars/
 
