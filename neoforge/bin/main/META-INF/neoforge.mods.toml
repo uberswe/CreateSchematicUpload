@@ -1,0 +1,37 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "createschematichelper"
+version = "2.0.1"
+displayName = "CreateSchematicHelper"
+authors = "uberswe, Jamalam"
+description = '''Upload and download Create mod schematics to and from createmod.com.'''
+
+[[mixins]]
+config = "createschematichelper.mixins.json"
+
+[[mixins]]
+config = "createschematichelper.neoforge.mixins.json"
+
+[[dependencies."createschematichelper"]]
+modId = "neoforge"
+type = "required"
+versionRange = "[21,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."createschematichelper"]]
+modId = "minecraft"
+type = "required"
+versionRange = "[1.21.1,1.22)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."createschematichelper"]]
+modId = "create"
+type = "required"
+versionRange = "[0.5.1,)"
+ordering = "AFTER"
+side = "CLIENT"

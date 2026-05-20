@@ -12,8 +12,6 @@ import net.minecraft.network.chat.TextComponent;
 import net.minecraft.network.chat.TranslatableComponent;
 import org.slf4j.Logger;
 
-import com.uberswe.createschematichelper.SchematicIsometricRenderer.RenderedFrame;
-
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -23,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -47,40 +44,20 @@ public class SchematicUploadHandler {
     }
 
     private static void uploadAsync(Path filePath) {
-        sendChatMessage(new TranslatableComponent("createschematichelper.upload.rendering")
-                .withStyle(ChatFormatting.GRAY));
-
-        SchematicIsometricRenderer.render360(filePath)
-                .thenAcceptAsync(frames -> {
-                    try {
-                        saveFramesLocally(filePath, frames);
-                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
-                                .withStyle(ChatFormatting.GRAY));
-                        upload(filePath, frames);
-                    } catch (Exception e) {
-                        LOGGER.error("Failed to upload schematic", e);
-                        sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                })
-                .exceptionally(ex -> {
-                    LOGGER.error("Failed to render previews, uploading without images", ex);
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
-                                    .withStyle(ChatFormatting.GRAY));
-                            upload(filePath, List.of());
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to upload schematic", e);
-                            sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
-                                    .withStyle(ChatFormatting.YELLOW));
-                        }
-                    });
-                    return null;
-                });
+        CompletableFuture.runAsync(() -> {
+            try {
+                sendChatMessage(new TranslatableComponent("createschematichelper.upload.uploading")
+                        .withStyle(ChatFormatting.GRAY));
+                upload(filePath);
+            } catch (Exception e) {
+                LOGGER.error("Failed to upload schematic", e);
+                sendChatMessage(new TranslatableComponent("createschematichelper.upload.failed")
+                        .withStyle(ChatFormatting.YELLOW));
+            }
+        });
     }
 
-    private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
+    private static void upload(Path filePath) throws Exception {
         long fileSize = Files.size(filePath);
         if (fileSize > MAX_FILE_SIZE) {
             sendChatMessage(new TranslatableComponent("createschematichelper.upload.too_large")
@@ -99,24 +76,11 @@ public class SchematicUploadHandler {
             return;
         }
 
-        HttpResponse<String> response = sendUploadRequest(fileName, fileBytes, frames);
-        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
-
-        if (response.statusCode() != 200 && response.statusCode() != 409 && !frames.isEmpty()) {
-            LOGGER.warn("Upload with {} frames failed (HTTP {}), retrying without images", frames.size(), response.statusCode());
-            response = sendUploadRequest(fileName, fileBytes, List.of());
-            LOGGER.info("Retry response: HTTP {} — {}", response.statusCode(), response.body());
-        }
-
-        handleResponse(response, ConfigValues.baseUrl, frames.size());
-    }
-
-    private static HttpResponse<String> sendUploadRequest(String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
         String boundary = UUID.randomUUID().toString();
-        byte[] body = buildMultipartBody(boundary, fileName, fileBytes, frames);
+        byte[] body = buildMultipartBody(boundary, fileName, fileBytes);
 
         String baseUrl = ConfigValues.baseUrl;
-        LOGGER.info("Sending upload: {} ({} frames, body {} bytes) to {}", fileName, frames.size(), body.length, baseUrl);
+        LOGGER.info("Sending upload: {} (body {} bytes) to {}", fileName, body.length, baseUrl);
 
         long timestamp = System.currentTimeMillis() / 1000;
         Minecraft mc = Minecraft.getInstance();
@@ -136,10 +100,12 @@ public class SchematicUploadHandler {
                 .timeout(Duration.ofMinutes(5))
                 .build();
 
-        return client.send(request, HttpResponse.BodyHandlers.ofString());
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        LOGGER.info("Upload response: HTTP {} — {}", response.statusCode(), response.body());
+        handleResponse(response, baseUrl);
     }
 
-    private static void handleResponse(HttpResponse<String> response, String baseUrl, int imageCount) {
+    private static void handleResponse(HttpResponse<String> response, String baseUrl) {
         int status = response.statusCode();
         String body = response.body();
 
@@ -175,51 +141,20 @@ public class SchematicUploadHandler {
         }
     }
 
-    private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
+    private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes) throws Exception {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         String crlf = "\r\n";
         String safeFileName = fileName.replace("\"", "").replace("\r", "").replace("\n", "");
 
-        writePart(baos, boundary, crlf, "file", safeFileName, "application/octet-stream", fileBytes);
-
-        for (RenderedFrame frame : frames) {
-            if (frame.featured()) {
-                writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
-            }
-            writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
-        }
+        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Disposition: form-data; name=\"file\"; filename=\"" + safeFileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(("Content-Type: application/octet-stream" + crlf).getBytes(StandardCharsets.UTF_8));
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
+        baos.write(fileBytes);
+        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
 
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
         return baos.toByteArray();
-    }
-
-    private static void writePart(ByteArrayOutputStream baos, String boundary, String crlf,
-                                   String fieldName, String fileName, String contentType, byte[] data) throws Exception {
-        baos.write(("--" + boundary + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Disposition: form-data; name=\"" + fieldName + "\"; filename=\"" + fileName + "\"" + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(("Content-Type: " + contentType + crlf).getBytes(StandardCharsets.UTF_8));
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-        baos.write(data);
-        baos.write(crlf.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static void saveFramesLocally(Path schematicPath, List<RenderedFrame> frames) {
-        if (!ConfigValues.saveFeaturedFrames && !ConfigValues.saveAllFrames) return;
-
-        try {
-            String baseName = schematicPath.getFileName().toString().replaceFirst("\\.nbt$", "");
-            Path dir = schematicPath.getParent().resolve(baseName + "_renders");
-            Files.createDirectories(dir);
-
-            for (RenderedFrame frame : frames) {
-                if (ConfigValues.saveAllFrames || (ConfigValues.saveFeaturedFrames && frame.featured())) {
-                    Files.write(dir.resolve(frame.filename()), frame.data());
-                }
-            }
-            LOGGER.info("Saved rendered frames to {}", dir);
-        } catch (Exception e) {
-            LOGGER.error("Failed to save frames locally", e);
-        }
     }
 
     static void sendChatMessage(Component message) {

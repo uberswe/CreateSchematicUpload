@@ -1,0 +1,17 @@
+{
+  "createschematichelper.upload.rendering": "Rendering schematic previews, this might take a few seconds...",
+  "createschematichelper.upload.success": "Schematic uploaded! View at: ",
+  "createschematichelper.upload.uploading": "Uploading schematic to createmod.com, this might take some additional seconds...",
+  "createschematichelper.upload.error": "Upload failed: %s",
+  "createschematichelper.upload.failed": "Schematic could not be automatically uploaded",
+  "createschematichelper.upload.already_exists": "This schematic has already been uploaded",
+  "createschematichelper.upload.too_large": "Schematic is too large (max 10MB)",
+  "createschematichelper.confirm.title": "Upload Schematic?",
+  "createschematichelper.confirm.message": "Upload \"%s\" to createmod.com?",
+  "createschematichelper.confirm.upload": "Upload",
+  "createschematichelper.confirm.cancel": "Cancel",
+  "text.createschematichelper.processing": "Processing...",
+  "text.createschematichelper.url_field_hint": "Code or CreateMod.com URL",
+  "text.createschematichelper.download_schematic": "Download a schematic from CreateMod.com",
+  "text.createschematichelper.choose_local_schematic": "Choose a local schematic"
+}
