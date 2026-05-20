@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 public class SchematicUploadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private static final int PROGRESS_BAR_LENGTH = 20;
 
     public static void onSchematicSaved(Path filePath) {
         if (!ConfigValues.enabled) return;
@@ -45,37 +46,39 @@ public class SchematicUploadHandler {
     }
 
     private static void uploadAsync(Path filePath) {
-        sendChatMessage(Component.translatable("createschematichelper.upload.rendering")
-                .withStyle(ChatFormatting.GRAY));
+        sendProgressBar("Rendering", 0, 1);
 
-        SchematicIsometricRenderer.render360(filePath)
-                .thenAcceptAsync(frames -> {
-                    try {
-                        saveFramesLocally(filePath, frames);
-                        sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
-                                .withStyle(ChatFormatting.GRAY));
-                        upload(filePath, frames);
-                    } catch (Exception e) {
-                        LOGGER.error("Failed to upload schematic", e);
-                        sendChatMessage(Component.translatable("createschematichelper.upload.failed")
-                                .withStyle(ChatFormatting.YELLOW));
-                    }
-                })
-                .exceptionally(ex -> {
-                    LOGGER.error("Failed to render previews, uploading without images", ex);
-                    CompletableFuture.runAsync(() -> {
-                        try {
-                            sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
-                                    .withStyle(ChatFormatting.GRAY));
-                            upload(filePath, List.of());
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to upload schematic", e);
-                            sendChatMessage(Component.translatable("createschematichelper.upload.failed")
-                                    .withStyle(ChatFormatting.YELLOW));
-                        }
-                    });
-                    return null;
-                });
+        SchematicIsometricRenderer.render360(filePath, (stage, current, total) -> {
+            switch (stage) {
+                case "rendering" -> sendProgressBar("Rendering", current, total);
+                case "processing" -> sendProgressBar("Processing", current, total);
+            }
+        })
+        .thenAcceptAsync(frames -> {
+            try {
+                saveFramesLocally(filePath, frames);
+                sendProgressBar("Uploading", 0, 0);
+                upload(filePath, frames);
+            } catch (Exception e) {
+                LOGGER.error("Failed to upload schematic", e);
+                sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+                        .withStyle(ChatFormatting.YELLOW));
+            }
+        })
+        .exceptionally(ex -> {
+            LOGGER.error("Failed to render previews, uploading without images", ex);
+            CompletableFuture.runAsync(() -> {
+                try {
+                    sendProgressBar("Uploading", 0, 0);
+                    upload(filePath, List.of());
+                } catch (Exception e) {
+                    LOGGER.error("Failed to upload schematic", e);
+                    sendChatMessage(Component.translatable("createschematichelper.upload.failed")
+                            .withStyle(ChatFormatting.YELLOW));
+                }
+            });
+            return null;
+        });
     }
 
     private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
@@ -218,6 +221,26 @@ public class SchematicUploadHandler {
         } catch (Exception e) {
             LOGGER.error("Failed to save frames locally", e);
         }
+    }
+
+    private static void sendProgressBar(String stage, int current, int total) {
+        MutableComponent msg;
+        if (total > 0) {
+            int filled = Math.min(PROGRESS_BAR_LENGTH, current * PROGRESS_BAR_LENGTH / total);
+            msg = Component.literal(stage + " ").withStyle(ChatFormatting.WHITE);
+            msg.append(Component.literal("█".repeat(filled)).withStyle(ChatFormatting.GREEN));
+            msg.append(Component.literal("░".repeat(PROGRESS_BAR_LENGTH - filled)).withStyle(ChatFormatting.DARK_GRAY));
+            msg.append(Component.literal(" " + current + "/" + total).withStyle(ChatFormatting.GRAY));
+        } else {
+            msg = Component.literal(stage + "...").withStyle(ChatFormatting.WHITE);
+        }
+
+        Minecraft mc = Minecraft.getInstance();
+        mc.execute(() -> {
+            if (mc.player != null) {
+                mc.player.displayClientMessage(msg, true);
+            }
+        });
     }
 
     static void sendChatMessage(Component message) {

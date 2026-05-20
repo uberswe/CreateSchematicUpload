@@ -54,24 +54,32 @@ public class SchematicIsometricRenderer {
     private static final int MAX_FB_SIZE = 1400;
     private static final int MIN_FB_SIZE = 768;
     private static final int TARGET_WIDTH = 1200;
-    private static final int FRAMES_PER_BATCH = 8;
+    private static final int FRAMES_PER_BATCH = 4;
     private static final long MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
     private static final float QUALITY_HIGH = 0.85f;
     private static final float QUALITY_LOW = 0.75f;
 
+    @FunctionalInterface
+    public interface ProgressCallback {
+        void onProgress(String stage, int current, int total);
+    }
+
+    private static final ProgressCallback NOOP = (stage, current, total) -> {};
+
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
+        return render360(nbtFile, NOOP);
+    }
+
+    public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile, ProgressCallback progress) {
         return CompletableFuture.supplyAsync(() -> {
             try (InputStream is = Files.newInputStream(nbtFile)) {
                 return NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
             } catch (Exception e) {
                 throw new RuntimeException("Failed to read NBT file", e);
             }
-        }).thenCompose(SchematicIsometricRenderer::render360);
+        }).thenCompose(tag -> render360(tag, progress));
     }
 
-    /**
-     * Holds all state needed across render batches.
-     */
     private record RenderState(
             Minecraft mc,
             RenderTarget renderTarget,
@@ -162,7 +170,7 @@ public class SchematicIsometricRenderer {
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
-                                     CompletableFuture<List<NativeImage>> future) {
+                                     CompletableFuture<List<NativeImage>> future, ProgressCallback progress) {
         try {
             int end = Math.min(startIndex + FRAMES_PER_BATCH, state.angles.length);
 
@@ -195,14 +203,12 @@ public class SchematicIsometricRenderer {
                 images.add(image);
             }
 
-            // Restore main render target so the game can render its frame between batches
             state.mc.getMainRenderTarget().bindWrite(true);
+            progress.onProgress("rendering", end, state.angles.length);
 
             if (end < state.angles.length) {
-                // Schedule next batch
-                RenderSystem.recordRenderCall(() -> renderBatch(state, end, images, future));
+                RenderSystem.recordRenderCall(() -> renderBatch(state, end, images, future, progress));
             } else {
-                // All frames rendered — clean up and complete
                 state.renderTarget.destroyBuffers();
                 future.complete(images);
             }
@@ -213,25 +219,30 @@ public class SchematicIsometricRenderer {
         }
     }
 
-    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag) {
+    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag, ProgressCallback progress) {
         CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
 
         RenderSystem.recordRenderCall(() -> {
             try {
                 RenderState state = setupRenderState(tag);
                 List<NativeImage> images = new ArrayList<>();
-                renderBatch(state, 0, images, renderFuture);
+                progress.onProgress("rendering", 0, state.angles.length);
+                renderBatch(state, 0, images, renderFuture, progress);
             } catch (Exception e) {
                 renderFuture.completeExceptionally(e);
             }
         });
 
         return renderFuture
-                .thenApplyAsync(SchematicIsometricRenderer::cropAndConvert)
+                .thenApplyAsync(images -> cropAndConvert(images, progress))
                 .orTimeout(2, TimeUnit.MINUTES);
     }
 
-    private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages) {
+    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag) {
+        return render360(tag, NOOP);
+    }
+
+    private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages, ProgressCallback progress) {
         int fbSize = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
         int unionMinX = fbSize, unionMinY = fbSize, unionMaxX = -1, unionMaxY = -1;
 
@@ -280,6 +291,8 @@ public class SchematicIsometricRenderer {
         String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
         boolean isJpeg = format.equals("jpeg");
 
+        progress.onProgress("processing", 0, rawImages.size());
+
         List<BufferedImage> scaledImages = new ArrayList<>();
         List<Boolean> featuredFlags = new ArrayList<>();
         for (int i = 0; i < rawImages.size(); i++) {
@@ -294,6 +307,7 @@ public class SchematicIsometricRenderer {
             } catch (Exception e) {
                 LOGGER.error("Failed to process frame {}", i, e);
             }
+            progress.onProgress("processing", i + 1, rawImages.size());
         }
         background.close();
 
