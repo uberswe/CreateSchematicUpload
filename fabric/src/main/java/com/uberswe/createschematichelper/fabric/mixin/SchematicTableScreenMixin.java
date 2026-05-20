@@ -11,8 +11,6 @@ import com.simibubi.create.foundation.gui.widget.Label;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.uberswe.createschematichelper.SchematicDownloadHandler;
 import com.uberswe.createschematichelper.fabric.DownloadIcon;
-import net.minecraft.client.Minecraft;
-import java.util.concurrent.CompletableFuture;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.gui.Font;
@@ -88,23 +86,15 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             return;
         }
 
-        String url = this.createschematichelper$urlField.getValue();
-        this.createschematichelper$urlField.setValue("");
-        this.createschematichelper$urlField.setEditable(false);
-        this.createschematichelper$urlField.setSuggestion(new TranslatableComponent("text.createschematichelper.downloading").getString());
         this.lastChasingProgress = this.chasingProgress = this.progress = 0;
-
-        Minecraft mc = Minecraft.getInstance();
-        CompletableFuture.supplyAsync(() -> SchematicDownloadHandler.downloadSchematic(url))
-                .thenAccept(downloadedSchematicName -> mc.execute(() -> {
-                    this.createschematichelper$urlField.setEditable(true);
-                    if (downloadedSchematicName != null) {
-                        CreateClient.SCHEMATIC_SENDER.startNewUpload(downloadedSchematicName);
-                        this.createschematichelper$urlField.setSuggestion(createschematichelper$URL_FIELD_HINT.getString());
-                    } else {
-                        this.createschematichelper$urlField.setSuggestion("Failed to download schematic");
-                    }
-                }));
+        String downloadedSchematicName = SchematicDownloadHandler.downloadSchematic(this.createschematichelper$urlField.getValue());
+        if (downloadedSchematicName != null) {
+            CreateClient.SCHEMATIC_SENDER.startNewUpload(downloadedSchematicName);
+            this.createschematichelper$urlField.setValue("");
+        } else {
+            this.createschematichelper$urlField.setValue("");
+            this.createschematichelper$urlField.setSuggestion("Failed to download schematic");
+        }
         ci.cancel();
     }
 
