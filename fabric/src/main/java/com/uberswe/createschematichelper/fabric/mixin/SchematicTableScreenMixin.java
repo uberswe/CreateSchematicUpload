@@ -127,7 +127,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         return 32;
     }
 
-    @WrapOperation(method = "method_25394", at = @At(value = "INVOKE", target = "Lnet/minecraft/class_332;method_27535(Lnet/minecraft/class_327;Lnet/minecraft/class_2561;III)I"), remap = false)
+    @WrapOperation(method = "method_2389", at = @At(value = "INVOKE", target = "Lnet/minecraft/class_332;method_27535(Lnet/minecraft/class_327;Lnet/minecraft/class_2561;III)I"), remap = false)
     private int createschematichelper$stopLabelRender(GuiGraphics instance, Font font, Component text, int x, int y, int color, Operation<Integer> original) {
         if (!this.createschematichelper$urlField.isVisible()) {
             return original.call(instance, font, text, x, y, color);
@@ -135,7 +135,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         return 0;
     }
 
-    @WrapOperation(method = "method_25394", at = @At(value = "INVOKE", target = "Lnet/minecraft/class_332;method_51439(Lnet/minecraft/class_327;Lnet/minecraft/class_2561;IIIZ)I"), remap = false)
+    @WrapOperation(method = "method_2389", at = @At(value = "INVOKE", target = "Lnet/minecraft/class_332;method_51439(Lnet/minecraft/class_327;Lnet/minecraft/class_2561;IIIZ)I"), remap = false)
     private int createschematichelper$patchTitle(GuiGraphics instance, Font font, Component text, int x, int y, int color, boolean shadow, Operation<Integer> original) {
         if (this.createschematichelper$urlField.isVisible()) {
             return original.call(instance, font, createschematichelper$PROCESSING_TITLE, x, y, color, shadow);
@@ -143,7 +143,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         return original.call(instance, font, text, x, y, color, shadow);
     }
 
-    @WrapOperation(method = "method_25394", at = @At(value = "INVOKE", target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/class_332;II)V"), remap = false)
+    @WrapOperation(method = "method_2389", at = @At(value = "INVOKE", target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/class_332;II)V"), remap = false)
     private void createschematichelper$patchRender(AllGuiTextures instance, GuiGraphics graphics, int x, int y, Operation<Void> original) {
         if (instance == AllGuiTextures.SCHEMATIC_TABLE && this.createschematichelper$urlField.isVisible()) {
             graphics.blit(createschematichelper$TABLE_TEXTURE, x, y, 0, 0, AllGuiTextures.SCHEMATIC_TABLE.getWidth(), AllGuiTextures.SCHEMATIC_TABLE.getHeight());
