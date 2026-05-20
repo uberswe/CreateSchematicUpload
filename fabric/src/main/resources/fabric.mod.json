@@ -21,7 +21,8 @@
     ]
   },
   "mixins": [
-    "createschematichelper.mixins.json"
+    "createschematichelper.mixins.json",
+    "createschematichelper.fabric.mixins.json"
   ],
   "depends": {
     "fabricloader": ">=0.16.0",
