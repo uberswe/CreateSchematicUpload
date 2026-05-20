@@ -118,7 +118,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     }
 
     @Redirect(
-            method = "method_25394",
+            method = "method_2389",
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/class_327;method_30881(Lnet/minecraft/class_4587;Lnet/minecraft/class_2561;FFI)I"
@@ -133,7 +133,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     }
 
     @Redirect(
-            method = "method_25394",
+            method = "method_2389",
             at = @At(
                     value = "INVOKE",
                     target = "Lcom/simibubi/create/foundation/gui/AllGuiTextures;render(Lnet/minecraft/class_4587;IILnet/minecraft/class_332;)V"
@@ -149,7 +149,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         }
     }
 
-    @Inject(method = "method_25394", at = @At("TAIL"), remap = false)
+    @Inject(method = "method_2389", at = @At("TAIL"), remap = false)
     private void createschematichelper$renderHint(PoseStack poseStack, float partialTick, int mouseX, int mouseY, CallbackInfo ci) {
         if (this.createschematichelper$urlField != null
                 && this.createschematichelper$urlField.isVisible()
