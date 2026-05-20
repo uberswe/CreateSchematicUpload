@@ -81,7 +81,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$toggleMode();
     }
 
-    @Inject(method = "lambda$method_25426$0", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "lambda$init$0", at = @At("HEAD"), cancellable = true, remap = false)
     private void createschematichelper$downloadSchematic(CallbackInfo ci) {
         if (!menu.canWrite() || !this.createschematichelper$urlField.isVisible()) {
             return;
