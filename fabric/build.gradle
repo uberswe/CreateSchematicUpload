@@ -20,6 +20,7 @@ dependencies {
     compileOnly("maven.modrinth:create:${minecraft_version}-${create_version}") {
         transitive = false
     }
+    compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 }
 
 loom {
