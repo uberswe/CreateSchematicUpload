@@ -46,6 +46,8 @@ public class SchematicUploadHandler {
     }
 
     private static void uploadAsync(Path filePath) {
+        sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
+                .withStyle(ChatFormatting.GRAY));
         sendProgressBar("Rendering", 0, 1);
 
         SchematicIsometricRenderer.render360(filePath, (stage, current, total) -> {

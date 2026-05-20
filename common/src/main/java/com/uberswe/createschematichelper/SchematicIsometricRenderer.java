@@ -54,7 +54,7 @@ public class SchematicIsometricRenderer {
     private static final int MAX_FB_SIZE = 1400;
     private static final int MIN_FB_SIZE = 768;
     private static final int TARGET_WIDTH = 1200;
-    private static final int FRAMES_PER_BATCH = 4;
+    private static final int FRAMES_PER_BATCH = 1;
     private static final long MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
     private static final float QUALITY_HIGH = 0.85f;
     private static final float QUALITY_LOW = 0.75f;
@@ -92,7 +92,16 @@ public class SchematicIsometricRenderer {
             int fbH
     ) {}
 
-    private static RenderState setupRenderState(CompoundTag tag) {
+    private record PreRenderState(
+            SchematicLevel schematicLevel,
+            Vec3i size,
+            float[] angles,
+            float scale,
+            int fbW,
+            int fbH
+    ) {}
+
+    private static PreRenderState prepareOffThread(CompoundTag tag) {
         Minecraft mc = Minecraft.getInstance();
 
         if (mc.level == null) {
@@ -124,35 +133,11 @@ public class SchematicIsometricRenderer {
             fbW = fbH * ratio[0] / ratio[1];
         }
 
-        RenderTarget renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
-
         SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, mc.level);
         StructurePlaceSettings settings = new StructurePlaceSettings();
         template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
 
-        SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
-
-        Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
-        Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
-        RenderSystem.setShaderLights(light0, light1);
-
-        Matrix4f projectionMatrix = new Matrix4f().setOrtho(
-                -fbW / 2f, fbW / 2f,
-                -fbH / 2f, fbH / 2f,
-                -10000f, 10000f
-        );
-        RenderSystem.setProjectionMatrix(projectionMatrix, RenderSystem.getVertexSorting());
-
         float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
-
-        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
-        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
-            @Override public @NotNull VertexConsumer getEarlyBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-            @Override public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-            @Override public @NotNull VertexConsumer getLateBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
-            @Override public void draw() { mcBuffers.endBatch(); }
-            @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
-        };
 
         float[] angles;
         if (ConfigValues.render360) {
@@ -166,7 +151,37 @@ public class SchematicIsometricRenderer {
             angles = FEATURED_ANGLES;
         }
 
-        return new RenderState(mc, renderTarget, renderer, buffers, angles, size, scale, fbW, fbH);
+        return new PreRenderState(schematicLevel, size, angles, scale, fbW, fbH);
+    }
+
+    private static RenderState finalizeOnRenderThread(PreRenderState pre) {
+        Minecraft mc = Minecraft.getInstance();
+
+        RenderTarget renderTarget = new TextureTarget(pre.fbW, pre.fbH, true, Minecraft.ON_OSX);
+
+        SchematicRenderer renderer = new SchematicRenderer(pre.schematicLevel);
+
+        Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
+        Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
+        RenderSystem.setShaderLights(light0, light1);
+
+        Matrix4f projectionMatrix = new Matrix4f().setOrtho(
+                -pre.fbW / 2f, pre.fbW / 2f,
+                -pre.fbH / 2f, pre.fbH / 2f,
+                -10000f, 10000f
+        );
+        RenderSystem.setProjectionMatrix(projectionMatrix, RenderSystem.getVertexSorting());
+
+        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
+        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
+            @Override public @NotNull VertexConsumer getEarlyBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public @NotNull VertexConsumer getBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public @NotNull VertexConsumer getLateBuffer(@NotNull RenderType type) { return mcBuffers.getBuffer(type); }
+            @Override public void draw() { mcBuffers.endBatch(); }
+            @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
+        };
+
+        return new RenderState(mc, renderTarget, renderer, buffers, pre.angles, pre.size, pre.scale, pre.fbW, pre.fbH);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -220,20 +235,21 @@ public class SchematicIsometricRenderer {
     }
 
     public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag, ProgressCallback progress) {
-        CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
-
-        RenderSystem.recordRenderCall(() -> {
-            try {
-                RenderState state = setupRenderState(tag);
-                List<NativeImage> images = new ArrayList<>();
-                progress.onProgress("rendering", 0, state.angles.length);
-                renderBatch(state, 0, images, renderFuture, progress);
-            } catch (Exception e) {
-                renderFuture.completeExceptionally(e);
-            }
-        });
-
-        return renderFuture
+        return CompletableFuture.supplyAsync(() -> prepareOffThread(tag))
+                .thenCompose(pre -> {
+                    CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
+                    RenderSystem.recordRenderCall(() -> {
+                        try {
+                            RenderState state = finalizeOnRenderThread(pre);
+                            List<NativeImage> images = new ArrayList<>();
+                            progress.onProgress("rendering", 0, state.angles.length);
+                            renderBatch(state, 0, images, renderFuture, progress);
+                        } catch (Exception e) {
+                            renderFuture.completeExceptionally(e);
+                        }
+                    });
+                    return renderFuture;
+                })
                 .thenApplyAsync(images -> cropAndConvert(images, progress))
                 .orTimeout(2, TimeUnit.MINUTES);
     }
