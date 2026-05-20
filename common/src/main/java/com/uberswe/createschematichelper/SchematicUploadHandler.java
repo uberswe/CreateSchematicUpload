@@ -123,7 +123,7 @@ public class SchematicUploadHandler {
         String signature = SchematicDownloadHandler.hmacSha256(message);
 
         HttpClient client = HttpClient.newBuilder()
-                .version(HttpClient.Version.HTTP_1_1)
+                .version(HttpClient.Version.HTTP_2)
                 .build();
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + "/api/schematics/upload"))

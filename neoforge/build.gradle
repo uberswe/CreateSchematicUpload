@@ -4,7 +4,7 @@ plugins {
 }
 
 base {
-    archivesName = "${project.mod_id}-neoforge"
+    archivesName = "${project.mod_id}-neoforge-mc${project.minecraft_version}"
 }
 
 neoForge {
