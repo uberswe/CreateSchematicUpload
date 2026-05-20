@@ -14,8 +14,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
@@ -86,9 +86,7 @@ public class SchematicIsometricRenderer {
             SchematicRenderer renderer,
             SuperRenderTypeBuffer buffers,
             float[] angles,
-            float centerX,
-            float centerY,
-            float centerZ,
+            Vec3i size,
             float scale,
             int fbW,
             int fbH
@@ -103,19 +101,8 @@ public class SchematicIsometricRenderer {
 
         StructureTemplate template = new StructureTemplate();
         template.load(mc.level.holderLookup(Registries.BLOCK), tag);
-
-        SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, mc.level);
-        StructurePlaceSettings settings = new StructurePlaceSettings();
-        template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
-
-        BoundingBox bounds = schematicLevel.getBounds();
-        int extentX = bounds.maxX() - bounds.minX() + 1;
-        int extentY = bounds.maxY() - bounds.minY() + 1;
-        int extentZ = bounds.maxZ() - bounds.minZ() + 1;
-        float centerX = (bounds.minX() + bounds.maxX() + 1) / 2f;
-        float centerY = (bounds.minY() + bounds.maxY() + 1) / 2f;
-        float centerZ = (bounds.minZ() + bounds.maxZ() + 1) / 2f;
-        int maxDim = Math.max(extentX, Math.max(extentY, extentZ));
+        Vec3i size = template.getSize();
+        int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
 
         int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
         int fbW, fbH;
@@ -138,6 +125,10 @@ public class SchematicIsometricRenderer {
         }
 
         RenderTarget renderTarget = new TextureTarget(fbW, fbH, true, Minecraft.ON_OSX);
+
+        SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, mc.level);
+        StructurePlaceSettings settings = new StructurePlaceSettings();
+        template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
 
         SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
 
@@ -175,7 +166,7 @@ public class SchematicIsometricRenderer {
             angles = FEATURED_ANGLES;
         }
 
-        return new RenderState(mc, renderTarget, renderer, buffers, angles, centerX, centerY, centerZ, scale, fbW, fbH);
+        return new RenderState(mc, renderTarget, renderer, buffers, angles, size, scale, fbW, fbH);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -196,9 +187,9 @@ public class SchematicIsometricRenderer {
                 poseStack.mulPose(Axis.XP.rotationDegrees(ISOMETRIC_PITCH));
                 poseStack.mulPose(Axis.YP.rotationDegrees(yRot));
                 poseStack.translate(
-                        -state.centerX,
-                        -state.centerY,
-                        -state.centerZ
+                        -state.size.getX() / 2f,
+                        -state.size.getY() / 2f,
+                        -state.size.getZ() / 2f
                 );
 
                 state.renderer.render(poseStack, state.buffers);
