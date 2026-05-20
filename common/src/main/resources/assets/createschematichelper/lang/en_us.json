@@ -1,7 +1,7 @@
 {
   "createschematichelper.upload.rendering": "Rendering schematic previews, this might take a few seconds...",
   "createschematichelper.upload.success": "Schematic uploaded! View at: ",
-  "createschematichelper.upload.uploading": "Uploading schematic to createmod.com, this might take some additional seconds...",
+  "createschematichelper.upload.uploading": "Uploading schematic to createmod.com, this might take a few seconds...",
   "createschematichelper.upload.error": "Upload failed: %s",
   "createschematichelper.upload.failed": "Schematic could not be automatically uploaded",
   "createschematichelper.upload.already_exists": "This schematic has already been uploaded",
