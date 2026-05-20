@@ -13,5 +13,6 @@
   "text.createschematichelper.processing": "Processing...",
   "text.createschematichelper.url_field_hint": "Code or CreateMod.com URL",
   "text.createschematichelper.download_schematic": "Download a schematic from CreateMod.com",
-  "text.createschematichelper.choose_local_schematic": "Choose a local schematic"
+  "text.createschematichelper.choose_local_schematic": "Choose a local schematic",
+  "text.createschematichelper.downloading": "Downloading..."
 }
