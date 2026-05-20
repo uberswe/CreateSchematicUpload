@@ -5,20 +5,27 @@ import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Matrix4f;
 import com.mojang.math.Vector3f;
 import com.simibubi.create.content.schematics.SchematicWorld;
-import com.simibubi.create.content.schematics.client.SchematicRenderer;
-import com.simibubi.create.foundation.render.SuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.block.ModelBlockRenderer;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.RenderShape;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import org.slf4j.Logger;
@@ -35,6 +42,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -54,14 +62,6 @@ public class SchematicIsometricRenderer {
     private static final float QUALITY_HIGH = 0.85f;
     private static final float QUALITY_LOW = 0.75f;
     private static final int FRAMES_PER_BATCH = 8;
-
-    private static class DirectSchematicRenderer extends SchematicRenderer {
-        void buildBuffers() {
-            LOGGER.info("Building render buffers for schematic");
-            redraw();
-            LOGGER.info("Render buffers built");
-        }
-    }
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return CompletableFuture.supplyAsync(() -> {
@@ -130,39 +130,7 @@ public class SchematicIsometricRenderer {
         StructurePlaceSettings settings = new StructurePlaceSettings();
         template.placeInWorld(schematicWorld, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
 
-        DirectSchematicRenderer renderer = new DirectSchematicRenderer();
-        renderer.display(schematicWorld);
-        renderer.buildBuffers();
-
         float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
-
-        MultiBufferSource.BufferSource mcBuffers = mc.renderBuffers().bufferSource();
-        SuperRenderTypeBuffer buffers = new SuperRenderTypeBuffer() {
-            @Override
-            public VertexConsumer getEarlyBuffer(RenderType type) {
-                return mcBuffers.getBuffer(type);
-            }
-
-            @Override
-            public VertexConsumer getBuffer(RenderType type) {
-                return mcBuffers.getBuffer(type);
-            }
-
-            @Override
-            public VertexConsumer getLateBuffer(RenderType type) {
-                return mcBuffers.getBuffer(type);
-            }
-
-            @Override
-            public void draw() {
-                mcBuffers.endBatch();
-            }
-
-            @Override
-            public void draw(RenderType type) {
-                mcBuffers.endBatch(type);
-            }
-        };
 
         float[] angles;
         if (ConfigValues.render360) {
@@ -177,7 +145,7 @@ public class SchematicIsometricRenderer {
         }
 
         LOGGER.info("Render state ready: {}x{} framebuffer, scale={}, {} frames", fbW, fbH, scale, angles.length);
-        return new RenderState(renderTarget, renderer, buffers, size, fbW, fbH, scale, angles);
+        return new RenderState(renderTarget, schematicWorld, size, fbW, fbH, scale, angles);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -197,12 +165,25 @@ public class SchematicIsometricRenderer {
             );
             RenderSystem.setProjectionMatrix(projectionMatrix);
 
+            PoseStack modelViewStack = RenderSystem.getModelViewStack();
+            modelViewStack.pushPose();
+            modelViewStack.last().pose().setIdentity();
+            modelViewStack.last().normal().setIdentity();
+            RenderSystem.applyModelViewMatrix();
+
+            BlockRenderDispatcher blockRenderer = mc.getBlockRenderer();
+            MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
+            BoundingBox bounds = state.schematicWorld.getBounds();
+            Random random = new Random();
+
             for (int i = startIndex; i < end; i++) {
                 float yRot = state.angles[i];
 
                 state.renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                 state.renderTarget.clear(Minecraft.ON_OSX);
                 state.renderTarget.bindWrite(true);
+
+                RenderSystem.enableDepthTest();
 
                 PoseStack poseStack = new PoseStack();
                 poseStack.pushPose();
@@ -212,8 +193,38 @@ public class SchematicIsometricRenderer {
                 poseStack.mulPose(Vector3f.YP.rotationDegrees(yRot));
                 poseStack.translate(-state.size.getX() / 2.0, -state.size.getY() / 2.0, -state.size.getZ() / 2.0);
 
-                state.renderer.render(poseStack, state.buffers);
-                state.buffers.draw();
+                state.schematicWorld.renderMode = true;
+                ModelBlockRenderer.enableCaching();
+
+                for (BlockPos localPos : BlockPos.betweenClosed(
+                        bounds.minX(), bounds.minY(), bounds.minZ(),
+                        bounds.maxX(), bounds.maxY(), bounds.maxZ())) {
+                    BlockState blockState = state.schematicWorld.getBlockState(localPos);
+                    if (blockState.isAir()) continue;
+                    if (blockState.getRenderShape() != RenderShape.MODEL) continue;
+
+                    RenderType renderType = ItemBlockRenderTypes.getChunkRenderType(blockState);
+                    poseStack.pushPose();
+                    poseStack.translate(localPos.getX(), localPos.getY(), localPos.getZ());
+                    blockRenderer.renderBatched(blockState, localPos, state.schematicWorld, poseStack,
+                            bufferSource.getBuffer(renderType), true, random);
+                    poseStack.popPose();
+                }
+
+                ModelBlockRenderer.clearCache();
+                state.schematicWorld.renderMode = false;
+
+                for (BlockEntity be : state.schematicWorld.getRenderedBlockEntities()) {
+                    BlockEntityRenderer<BlockEntity> beRenderer = mc.getBlockEntityRenderDispatcher().getRenderer(be);
+                    if (beRenderer == null) continue;
+                    BlockPos bePos = be.getBlockPos();
+                    poseStack.pushPose();
+                    poseStack.translate(bePos.getX(), bePos.getY(), bePos.getZ());
+                    beRenderer.render(be, 0, poseStack, bufferSource, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+                    poseStack.popPose();
+                }
+
+                bufferSource.endBatch();
                 poseStack.popPose();
 
                 NativeImage image = new NativeImage(state.fbW, state.fbH, false);
@@ -222,6 +233,9 @@ public class SchematicIsometricRenderer {
                 image.flipY();
                 images.add(image);
             }
+
+            modelViewStack.popPose();
+            RenderSystem.applyModelViewMatrix();
 
             if (end >= state.angles.length) {
                 state.renderTarget.destroyBuffers();
@@ -240,19 +254,16 @@ public class SchematicIsometricRenderer {
 
     private static class RenderState {
         final RenderTarget renderTarget;
-        final DirectSchematicRenderer renderer;
-        final SuperRenderTypeBuffer buffers;
+        final SchematicWorld schematicWorld;
         final Vec3i size;
         final int fbW, fbH;
         final float scale;
         final float[] angles;
 
-        RenderState(RenderTarget renderTarget, DirectSchematicRenderer renderer,
-                    SuperRenderTypeBuffer buffers, Vec3i size,
+        RenderState(RenderTarget renderTarget, SchematicWorld schematicWorld, Vec3i size,
                     int fbW, int fbH, float scale, float[] angles) {
             this.renderTarget = renderTarget;
-            this.renderer = renderer;
-            this.buffers = buffers;
+            this.schematicWorld = schematicWorld;
             this.size = size;
             this.fbW = fbW;
             this.fbH = fbH;
