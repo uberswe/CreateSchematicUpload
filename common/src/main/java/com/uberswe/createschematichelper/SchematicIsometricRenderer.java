@@ -19,6 +19,7 @@ import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
@@ -42,16 +43,18 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class SchematicIsometricRenderer {
     private static final Logger LOGGER = LogUtils.getLogger();
+    private static final AtomicReference<CompletableFuture<?>> activeRender = new AtomicReference<>();
     private static final float ISOMETRIC_PITCH = 35.264f;
 
     private static final float START_ANGLE = 45f;
     private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
 
     private static final int PIXELS_PER_BLOCK = 32;
-    private static final int MAX_FB_SIZE = 1400;
+    private static final int MAX_FB_SIZE = 4096;
     private static final int MIN_FB_SIZE = 768;
     private static final int TARGET_WIDTH = 1200;
     private static final int FRAMES_PER_BATCH = 1;
@@ -71,13 +74,23 @@ public class SchematicIsometricRenderer {
     }
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile, ProgressCallback progress) {
-        return CompletableFuture.supplyAsync(() -> {
+        CompletableFuture<?> previous = activeRender.getAndSet(null);
+        if (previous != null) {
+            LOGGER.info("Cancelling previous render");
+            previous.cancel(false);
+        }
+
+        LOGGER.info("Starting render360 for {}", nbtFile);
+        CompletableFuture<List<RenderedFrame>> future = CompletableFuture.supplyAsync(() -> {
             try (InputStream is = Files.newInputStream(nbtFile)) {
                 return NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
             } catch (Exception e) {
-                throw new RuntimeException("Failed to read NBT file", e);
+                throw new RuntimeException("Failed to read NBT file: " + nbtFile, e);
             }
         }).thenCompose(tag -> render360(tag, progress));
+        activeRender.set(future);
+        future.whenComplete((result, ex) -> activeRender.compareAndSet(future, null));
+        return future;
     }
 
     private record RenderState(
@@ -110,34 +123,59 @@ public class SchematicIsometricRenderer {
 
         StructureTemplate template = new StructureTemplate();
         template.load(mc.level.holderLookup(Registries.BLOCK), tag);
+        LOGGER.info("Template loaded: size={}", template.getSize());
         Vec3i size = template.getSize();
-        int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
 
         int maxSupported = Math.min(MAX_FB_SIZE, RenderSystem.maxSupportedTextureSize());
+        int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
         int fbW, fbH;
-        float effectivePixelWidth = PIXELS_PER_BLOCK;
+        float scale;
 
         if (ConfigValues.overrideWidth > 0 && ConfigValues.overrideHeight > 0) {
             fbW = Math.min(ConfigValues.overrideWidth, maxSupported);
             fbH = Math.min(ConfigValues.overrideHeight, maxSupported);
-            effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
+            int maxDim = Math.max(size.getX(), Math.max(size.getY(), size.getZ()));
+            float effectivePixelWidth = (float) fbH / (maxDim * 2.0f);
+            scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
         } else {
-            int theoreticalH = maxDim * PIXELS_PER_BLOCK * 2;
-            if (theoreticalH > maxSupported) {
-                fbH = maxSupported;
-                effectivePixelWidth = (float) maxSupported / (maxDim * 2.0f);
+            float cosPitch = (float) Math.cos(Math.toRadians(ISOMETRIC_PITCH));
+            float sinPitch = (float) Math.sin(Math.toRadians(ISOMETRIC_PITCH));
+
+            float worstProjW = (float) Math.sqrt(
+                    (float) size.getX() * size.getX() + (float) size.getZ() * size.getZ());
+            float worstProjH = size.getY() * cosPitch + worstProjW * sinPitch;
+
+            int margin = 40;
+            scale = Math.min(
+                    (float) (maxSupported - margin * 2) / Math.max(1, worstProjW),
+                    (float) (maxSupported - margin * 2) / Math.max(1, worstProjH)
+            );
+
+            fbW = Math.round(worstProjW * scale) + margin * 2;
+            fbH = Math.round(worstProjH * scale) + margin * 2;
+
+            if (fbW * ratio[1] < fbH * ratio[0]) {
+                fbW = fbH * ratio[0] / ratio[1];
             } else {
-                fbH = Math.max(MIN_FB_SIZE, theoreticalH);
+                fbH = fbW * ratio[1] / ratio[0];
             }
-            int[] ratio = parseAspectRatio(ConfigValues.aspectRatio);
-            fbW = fbH * ratio[0] / ratio[1];
+
+            fbW = Math.max(MIN_FB_SIZE, fbW);
+            fbH = Math.max(MIN_FB_SIZE * ratio[1] / ratio[0], fbH);
+
+            if (fbW > maxSupported || fbH > maxSupported) {
+                float cap = (float) maxSupported / Math.max(fbW, fbH);
+                fbW = Math.round(fbW * cap);
+                fbH = Math.round(fbH * cap);
+                scale *= cap;
+            }
         }
 
         SchematicLevel schematicLevel = new SchematicLevel(BlockPos.ZERO, mc.level);
         StructurePlaceSettings settings = new StructurePlaceSettings();
-        template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, mc.level.random, Block.UPDATE_CLIENTS);
+        template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, RandomSource.create(), Block.UPDATE_CLIENTS);
 
-        float scale = effectivePixelWidth / (float) Math.sqrt(2) * 0.85f;
+        LOGGER.info("Render setup: fb={}x{}, scale={}", fbW, fbH, scale);
 
         float[] angles;
         if (ConfigValues.render360) {
@@ -187,6 +225,12 @@ public class SchematicIsometricRenderer {
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
                                      CompletableFuture<List<NativeImage>> future, ProgressCallback progress) {
         try {
+            if (future.isCancelled()) {
+                state.renderTarget.destroyBuffers();
+                state.mc.getMainRenderTarget().bindWrite(true);
+                return;
+            }
+
             int end = Math.min(startIndex + FRAMES_PER_BATCH, state.angles.length);
 
             for (int i = startIndex; i < end; i++) {
@@ -259,10 +303,15 @@ public class SchematicIsometricRenderer {
     }
 
     private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages, ProgressCallback progress) {
-        int fbSize = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
-        int unionMinX = fbSize, unionMinY = fbSize, unionMaxX = -1, unionMaxY = -1;
+        Set<Integer> featuredIndices = computeFeaturedIndices(rawImages.size());
 
-        for (NativeImage raw : rawImages) {
+        int fbW = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
+        int fbH = rawImages.isEmpty() ? 1 : rawImages.get(0).getHeight();
+        int unionMinX = fbW, unionMinY = fbH, unionMaxX = -1, unionMaxY = -1;
+
+        for (int idx : featuredIndices) {
+            if (idx >= rawImages.size()) continue;
+            NativeImage raw = rawImages.get(idx);
             int w = raw.getWidth();
             int h = raw.getHeight();
             for (int y = 0; y < h; y++) {
@@ -283,7 +332,7 @@ public class SchematicIsometricRenderer {
 
         int cropW = unionMaxX - unionMinX + 1;
         int cropH = unionMaxY - unionMinY + 1;
-        int padding = Math.max(12, Math.max(cropW, cropH) / 8);
+        int padding = Math.max(8, Math.max(cropW, cropH) / 20);
         int contentW = cropW + padding * 2;
         int contentH = cropH + padding * 2;
 
@@ -297,15 +346,21 @@ public class SchematicIsometricRenderer {
             bgW = bgH * ratio[0] / ratio[1];
         }
 
-        int padX = (bgW - cropW) / 2;
-        int padY = (bgH - cropH) / 2;
-        NativeImage background = generateBlueprintBackground(bgW, bgH);
-
-        Set<Integer> featuredIndices = computeFeaturedIndices(rawImages.size());
         String format = ConfigValues.imageFormat;
         String ext = format.equals("jpeg") ? "jpg" : format;
         String mimeType = format.equals("jpeg") ? "image/jpeg" : "image/png";
         boolean isJpeg = format.equals("jpeg");
+
+        int targetW = TARGET_WIDTH;
+        int targetH = Math.round((float) targetW * bgH / bgW);
+        float scaleRatio = (float) targetW / bgW;
+        int targetCropW = Math.round(cropW * scaleRatio);
+        int targetCropH = Math.round(cropH * scaleRatio);
+        int targetPadX = (targetW - targetCropW) / 2;
+        int targetPadY = (targetH - targetCropH) / 2;
+
+        int imageType = isJpeg ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB;
+        BufferedImage bgTemplate = generateBlueprintBackgroundBuffered(targetW, targetH);
 
         progress.onProgress("processing", 0, rawImages.size());
 
@@ -314,18 +369,30 @@ public class SchematicIsometricRenderer {
         for (int i = 0; i < rawImages.size(); i++) {
             NativeImage raw = rawImages.get(i);
             try (raw) {
-                NativeImage composited = compositeRegionOnBackground(background, raw,
-                        unionMinX, unionMinY, cropW, cropH, padX, padY, bgW, bgH);
-                try (composited) {
-                    scaledImages.add(toScaledBufferedImage(composited, isJpeg));
-                    featuredFlags.add(featuredIndices.contains(i));
-                }
+                BufferedImage fullFrame = nativeToBuffered(raw);
+
+                int drawW = Math.round(raw.getWidth() * scaleRatio);
+                int drawH = Math.round(raw.getHeight() * scaleRatio);
+                int drawX = targetPadX - Math.round(unionMinX * scaleRatio);
+                int drawY = targetPadY - Math.round(unionMinY * scaleRatio);
+
+                BufferedImage output = new BufferedImage(targetW, targetH, imageType);
+                java.awt.Graphics2D g2d = output.createGraphics();
+                g2d.drawImage(bgTemplate, 0, 0, null);
+                g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                        java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
+                        java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+                g2d.drawImage(fullFrame, drawX, drawY, drawW, drawH, null);
+                g2d.dispose();
+
+                scaledImages.add(output);
+                featuredFlags.add(featuredIndices.contains(i));
             } catch (Exception e) {
                 LOGGER.error("Failed to process frame {}", i, e);
             }
             progress.onProgress("processing", i + 1, rawImages.size());
         }
-        background.close();
 
         float quality = QUALITY_HIGH;
         List<RenderedFrame> result = encodeFrames(scaledImages, featuredFlags, format, ext, mimeType, quality);
@@ -466,6 +533,79 @@ public class SchematicIsometricRenderer {
 
     private static int clamp8(int v) {
         return Math.max(0, Math.min(255, v));
+    }
+
+    private static BufferedImage generateBlueprintBackgroundBuffered(int w, int h) {
+        BufferedImage bg = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+
+        float cx = w / 2f;
+        float cy = h / 2f;
+        float maxDist = (float) Math.sqrt(cx * cx + cy * cy);
+
+        int smallGrid = Math.max(4, w / 50);
+        int largeGrid = smallGrid * 5;
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                float dx = x - cx;
+                float dy = y - cy;
+                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
+                float brightness = 1.0f - dist * 0.35f;
+
+                int r = clamp8(Math.round(68 * brightness));
+                int g = clamp8(Math.round(108 * brightness));
+                int b = clamp8(Math.round(140 * brightness));
+
+                boolean onLargeGrid = (x % largeGrid == 0) || (y % largeGrid == 0);
+                boolean onSmallGrid = (x % smallGrid == 0) || (y % smallGrid == 0);
+
+                if (onLargeGrid) {
+                    r = clamp8(r + 45); g = clamp8(g + 45); b = clamp8(b + 45);
+                } else if (onSmallGrid) {
+                    r = clamp8(r + 22); g = clamp8(g + 22); b = clamp8(b + 22);
+                }
+
+                bg.setRGB(x, y, (r << 16) | (g << 8) | b);
+            }
+        }
+        return bg;
+    }
+
+    private static BufferedImage nativeToBuffered(NativeImage source) {
+        int w = source.getWidth();
+        int h = source.getHeight();
+        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int pixel = source.getPixelRGBA(x, y);
+                int r = pixel & 0xFF;
+                int g = (pixel >> 8) & 0xFF;
+                int b = (pixel >> 16) & 0xFF;
+                int a = (pixel >> 24) & 0xFF;
+                result.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+        return result;
+    }
+
+    private static BufferedImage extractCropToBuffered(NativeImage source, int srcX, int srcY, int w, int h) {
+        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        int srcW = source.getWidth();
+        int srcH = source.getHeight();
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                int sx = srcX + x;
+                int sy = srcY + y;
+                if (sx < 0 || sx >= srcW || sy < 0 || sy >= srcH) continue;
+                int pixel = source.getPixelRGBA(sx, sy);
+                int r = pixel & 0xFF;
+                int g = (pixel >> 8) & 0xFF;
+                int b = (pixel >> 16) & 0xFF;
+                int a = (pixel >> 24) & 0xFF;
+                result.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
+            }
+        }
+        return result;
     }
 
     private static BufferedImage toScaledBufferedImage(NativeImage image, boolean isJpeg) {

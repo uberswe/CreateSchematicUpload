@@ -32,7 +32,7 @@
 
 ### Download
 - **Download from createmod.com** - enter a createmod.com URL or short code directly in the Create Schematic Table to download schematics shared by other players
-- **Seamless integration** - downloaded schematics are placed into your local schematics folder and ready to use immediately
+- **Seamless integration** - downloaded schematics are placed into your local schematics folder and are ready to use immediately
 
 ## Side
 
