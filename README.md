@@ -75,6 +75,7 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | `saveFeaturedFrames` | `false` | Save the 4 featured perspective images locally to the schematics folder *(1.21.1+ only)* |
 | `saveAllFrames` | `false` | Save all rotation frames locally to the schematics folder *(1.21.1+ only)* |
 | `imageFormat` | `jpeg` | Image format for rendered frames: `jpeg` (smaller files, recommended) or `png` (lossless) *(1.21.1+ only)* |
+| `backgroundImage` | *(empty)* | Absolute path to a custom background image (JPEG or PNG). Leave empty to use the default blueprint grid. *(1.21.1+ only)* |
 
 ## How It Works
 

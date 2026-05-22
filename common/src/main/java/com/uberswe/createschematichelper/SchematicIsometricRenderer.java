@@ -60,6 +60,8 @@ public class SchematicIsometricRenderer {
     private static final int FRAMES_PER_BATCH = 1;
     private static final long MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
     private static final float QUALITY_HIGH = 0.85f;
+    private static final Vector3f BASE_LIGHT0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
+    private static final Vector3f BASE_LIGHT1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
     private static final float QUALITY_LOW = 0.75f;
 
     @FunctionalInterface
@@ -199,10 +201,6 @@ public class SchematicIsometricRenderer {
 
         SchematicRenderer renderer = new SchematicRenderer(pre.schematicLevel);
 
-        Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
-        Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
-        RenderSystem.setShaderLights(light0, light1);
-
         Matrix4f projectionMatrix = new Matrix4f().setOrtho(
                 -pre.fbW / 2f, pre.fbW / 2f,
                 -pre.fbH / 2f, pre.fbH / 2f,
@@ -235,6 +233,21 @@ public class SchematicIsometricRenderer {
 
             for (int i = startIndex; i < end; i++) {
                 float yRot = state.angles[i];
+                float yRotRad = (float) Math.toRadians(yRot);
+                float cosY = (float) Math.cos(yRotRad);
+                float sinY = (float) Math.sin(yRotRad);
+                RenderSystem.setShaderLights(
+                        new Vector3f(
+                                BASE_LIGHT0.x() * cosY + BASE_LIGHT0.z() * sinY,
+                                BASE_LIGHT0.y(),
+                                -BASE_LIGHT0.x() * sinY + BASE_LIGHT0.z() * cosY
+                        ).normalize(),
+                        new Vector3f(
+                                BASE_LIGHT1.x() * cosY + BASE_LIGHT1.z() * sinY,
+                                BASE_LIGHT1.y(),
+                                -BASE_LIGHT1.x() * sinY + BASE_LIGHT1.z() * cosY
+                        ).normalize()
+                );
 
                 state.renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                 state.renderTarget.clear(Minecraft.ON_OSX);
@@ -536,6 +549,24 @@ public class SchematicIsometricRenderer {
     }
 
     private static BufferedImage generateBlueprintBackgroundBuffered(int w, int h) {
+        String bgPath = ConfigValues.backgroundImage;
+        if (bgPath != null && !bgPath.isBlank()) {
+            try {
+                BufferedImage custom = ImageIO.read(Path.of(bgPath).toFile());
+                if (custom != null) {
+                    BufferedImage scaled = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
+                    java.awt.Graphics2D g2d = scaled.createGraphics();
+                    g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                            java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                    g2d.drawImage(custom, 0, 0, w, h, null);
+                    g2d.dispose();
+                    return scaled;
+                }
+            } catch (Exception e) {
+                LOGGER.warn("Failed to load custom background image '{}', falling back to default", bgPath, e);
+            }
+        }
+
         BufferedImage bg = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
 
         float cx = w / 2f;

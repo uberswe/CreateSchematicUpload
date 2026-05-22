@@ -45,5 +45,6 @@ public class CreateSchematicHelperNeoForge {
         ConfigValues.saveFeaturedFrames = NeoForgeConfig.SAVE_FEATURED_FRAMES.get();
         ConfigValues.saveAllFrames = NeoForgeConfig.SAVE_ALL_FRAMES.get();
         ConfigValues.imageFormat = NeoForgeConfig.IMAGE_FORMAT.get();
+        ConfigValues.backgroundImage = NeoForgeConfig.BACKGROUND_IMAGE.get();
     }
 }

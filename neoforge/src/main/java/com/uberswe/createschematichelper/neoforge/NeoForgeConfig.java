@@ -49,5 +49,9 @@ public class NeoForgeConfig {
             .comment("Image format for rendered frames: 'jpeg' (smaller files, recommended) or 'png' (lossless)")
             .define("imageFormat", "jpeg", o -> o instanceof String s && (s.equals("jpeg") || s.equals("png")));
 
+    public static final ModConfigSpec.ConfigValue<String> BACKGROUND_IMAGE = BUILDER
+            .comment("Path to a custom background image file (jpeg or png). Leave empty to use the default blueprint grid background.")
+            .define("backgroundImage", "");
+
     static final ModConfigSpec SPEC = BUILDER.build();
 }
