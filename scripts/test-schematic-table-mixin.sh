@@ -122,8 +122,8 @@ TARGET_METHODS=$(javap -p "$TARGET_CLASS" 2>&1)
 # TEST A: SchematicTableScreen must have an init() method
 # ---------------------------------------------------------------------------
 echo "--- Test A: Target class has init() or m_7856_() method ---"
-if echo "$TARGET_METHODS" | grep -qE "void (init|m_7856_)\(\)"; then
-    INIT_NAME=$(echo "$TARGET_METHODS" | grep -oE "(init|m_7856_)\(\)" | head -1 | sed 's/()//')
+if grep -qE "void (init|m_7856_)\(\)" <<< "$TARGET_METHODS"; then
+    INIT_NAME=$(grep -oE "(init|m_7856_)\(\)" <<< "$TARGET_METHODS" | head -1 | sed 's/()//')
     pass "init method exists as '$INIT_NAME' in SchematicTableScreen"
 else
     fail "Neither init() nor m_7856_() found — mixin @Inject will fail"
@@ -133,8 +133,8 @@ fi
 # TEST B: SchematicTableScreen must have a renderBg method
 # ---------------------------------------------------------------------------
 echo "--- Test B: Target class has renderBg() or m_7286_() method ---"
-if echo "$TARGET_METHODS" | grep -qE "renderBg|m_7286_"; then
-    RENDERBG_NAME=$(echo "$TARGET_METHODS" | grep -oE "(renderBg|m_7286_)" | head -1)
+if grep -qE "renderBg|m_7286_" <<< "$TARGET_METHODS"; then
+    RENDERBG_NAME=$(grep -oE "(renderBg|m_7286_)" <<< "$TARGET_METHODS" | head -1)
     pass "renderBg method exists as '$RENDERBG_NAME' in SchematicTableScreen"
 else
     fail "Neither renderBg() nor m_7286_() found — mixin @Redirect/@WrapOperation will fail"
@@ -144,7 +144,7 @@ fi
 # TEST C: SchematicTableScreen must have lambda$init$0 method
 # ---------------------------------------------------------------------------
 echo "--- Test C: Target class has lambda\$init\$0 method ---"
-if echo "$TARGET_METHODS" | grep -q 'lambda$init$0'; then
+if grep -q 'lambda$init$0' <<< "$TARGET_METHODS"; then
     pass "lambda\$init\$0 method exists in SchematicTableScreen"
 else
     fail "lambda\$init\$0 NOT found — mixin @Inject on lambda will fail (Create may have refactored)"
@@ -166,9 +166,9 @@ if [ -z "$INIT_BYTECODE" ]; then
     INIT_BYTECODE="$FULL_DISASM"
 fi
 
-if echo "$INIT_BYTECODE" | grep -qE "bipush\s+21$|sipush\s+21$"; then
+if grep -qE "bipush\s+21$|sipush\s+21$" <<< "$INIT_BYTECODE"; then
     pass "Constant 21 found in init() bytecode (refresh button Y position)"
-elif echo "$FULL_DISASM" | grep -qE "bipush\s+21$|sipush\s+21$"; then
+elif grep -qE "bipush\s+21$|sipush\s+21$" <<< "$FULL_DISASM"; then
     pass "Constant 21 found in class bytecode"
 else
     fail "Constant 21 NOT found — @ModifyConstant ordinal may be wrong"
@@ -190,7 +190,7 @@ if [ -z "$RENDERBG_BYTECODE" ]; then
 fi
 
 # In SRG bytecode, method names appear in constant pool comments after //
-if echo "$RENDERBG_BYTECODE" | grep -qE "drawShadow|drawString|m_92763_|m_280430_|Font"; then
+if grep -qE "drawShadow|drawString|m_92763_|m_280430_|Font" <<< "$RENDERBG_BYTECODE"; then
     pass "renderBg() calls Font draw method (label rendering target exists)"
 else
     fail "renderBg() does NOT reference Font/drawShadow/drawString — @Redirect target may be wrong"
@@ -200,7 +200,7 @@ fi
 # TEST F: renderBg() must call AllGuiTextures.render
 # ---------------------------------------------------------------------------
 echo "--- Test F: renderBg() calls AllGuiTextures.render ---"
-if echo "$RENDERBG_BYTECODE" | grep -q "AllGuiTextures"; then
+if grep -q "AllGuiTextures" <<< "$RENDERBG_BYTECODE"; then
     pass "renderBg() references AllGuiTextures (texture override target exists)"
 else
     fail "renderBg() does NOT reference AllGuiTextures — texture override @Redirect may be wrong"
