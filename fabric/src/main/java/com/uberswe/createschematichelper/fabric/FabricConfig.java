@@ -33,6 +33,7 @@ public class FabricConfig {
                 if (obj.has("saveFeaturedFrames")) ConfigValues.saveFeaturedFrames = obj.get("saveFeaturedFrames").getAsBoolean();
                 if (obj.has("saveAllFrames")) ConfigValues.saveAllFrames = obj.get("saveAllFrames").getAsBoolean();
                 if (obj.has("imageFormat")) ConfigValues.imageFormat = obj.get("imageFormat").getAsString();
+                if (obj.has("promptBeforeUpload")) ConfigValues.promptBeforeUpload = obj.get("promptBeforeUpload").getAsBoolean();
             } catch (Exception e) {
                 LOGGER.error("Failed to load config, using defaults", e);
             }
@@ -55,6 +56,7 @@ public class FabricConfig {
             obj.addProperty("saveFeaturedFrames", ConfigValues.saveFeaturedFrames);
             obj.addProperty("saveAllFrames", ConfigValues.saveAllFrames);
             obj.addProperty("imageFormat", ConfigValues.imageFormat);
+            obj.addProperty("promptBeforeUpload", ConfigValues.promptBeforeUpload);
             Files.writeString(CONFIG_PATH, GSON.toJson(obj));
         } catch (IOException e) {
             LOGGER.error("Failed to save config", e);
