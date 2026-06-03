@@ -17,4 +17,5 @@ public class ConfigValues {
     public static boolean saveFeaturedFrames = false;
     public static boolean saveAllFrames = false;
     public static String imageFormat = "jpeg";
+    public static boolean promptBeforeUpload = true;
 }

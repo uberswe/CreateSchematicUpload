@@ -7,7 +7,7 @@
   "createschematichelper.upload.already_exists": "This schematic has already been uploaded",
   "createschematichelper.upload.too_large": "Schematic is too large (max 10MB)",
   "createschematichelper.confirm.title": "Upload Schematic?",
-  "createschematichelper.confirm.message": "Upload \"%s\" to createmod.com?",
+  "createschematichelper.confirm.message": "Upload \"%s\" to createmod.com? ",
   "createschematichelper.confirm.upload": "Upload",
   "createschematichelper.confirm.cancel": "Cancel",
   "text.createschematichelper.processing": "Processing...",
