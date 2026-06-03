@@ -28,20 +28,88 @@ import java.util.concurrent.CompletableFuture;
 public class SchematicUploadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private static volatile Path pendingPath;
 
     public static void onSchematicSaved(Path filePath) {
         if (!ConfigValues.enabled) return;
 
+        boolean wantsSave = ConfigValues.saveFeaturedFrames || ConfigValues.saveAllFrames;
+
         if (ConfigValues.autoUpload) {
-            uploadAsync(filePath);
-        } else {
-            Minecraft mc = Minecraft.getInstance();
-            mc.execute(() -> mc.setScreen(new SchematicUploadConfirmScreen(filePath)));
+            if (ConfigValues.promptBeforeUpload) {
+                pendingPath = filePath;
+                sendPrompt(filePath, "createschematichelper.confirm.message",
+                        "createschematichelper.confirm.upload", "/csh upload");
+            } else {
+                uploadAsync(filePath);
+            }
+        } else if (wantsSave) {
+            if (ConfigValues.promptBeforeUpload) {
+                pendingPath = filePath;
+                sendPrompt(filePath, "createschematichelper.confirm.render_message",
+                        "createschematichelper.confirm.render", "/csh render");
+            } else {
+                renderAsync(filePath);
+            }
         }
+    }
+
+    private static void sendPrompt(Path filePath, String messageKey, String buttonKey, String command) {
+        String fileName = filePath.getFileName().toString();
+        MutableComponent message = Component.translatable(messageKey, fileName)
+                .withStyle(ChatFormatting.GRAY);
+        MutableComponent button = Component.literal(" [")
+                .append(Component.translatable(buttonKey))
+                .append("]")
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.GREEN)
+                        .withBold(true)
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command)));
+        sendChatMessage(message.append(button));
     }
 
     public static void confirmUpload(Path filePath) {
         uploadAsync(filePath);
+    }
+
+    public static void confirmPendingUpload() {
+        Path path = pendingPath;
+        pendingPath = null;
+        if (path != null) {
+            uploadAsync(path);
+        }
+    }
+
+    public static void confirmPendingRender() {
+        Path path = pendingPath;
+        pendingPath = null;
+        if (path != null) {
+            renderAsync(path);
+        }
+    }
+
+    private static void renderAsync(Path filePath) {
+        sendChatMessage(Component.translatable("createschematichelper.upload.rendering")
+                .withStyle(ChatFormatting.GRAY));
+
+        SchematicIsometricRenderer.render360(filePath)
+                .thenAcceptAsync(frames -> {
+                    try {
+                        saveFramesLocally(filePath, frames);
+                        sendChatMessage(Component.translatable("createschematichelper.render.success")
+                                .withStyle(ChatFormatting.GREEN));
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to save rendered frames", e);
+                        sendChatMessage(Component.translatable("createschematichelper.render.failed")
+                                .withStyle(ChatFormatting.YELLOW));
+                    }
+                })
+                .exceptionally(ex -> {
+                    LOGGER.error("Failed to render previews", ex);
+                    sendChatMessage(Component.translatable("createschematichelper.render.failed")
+                            .withStyle(ChatFormatting.YELLOW));
+                    return null;
+                });
     }
 
     private static void uploadAsync(Path filePath) {

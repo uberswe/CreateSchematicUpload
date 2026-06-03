@@ -49,5 +49,9 @@ public class NeoForgeConfig {
             .comment("Image format for rendered frames: 'jpeg' (smaller files, recommended) or 'png' (lossless)")
             .define("imageFormat", "jpeg", o -> o instanceof String s && (s.equals("jpeg") || s.equals("png")));
 
+    public static final ModConfigSpec.BooleanValue PROMPT_BEFORE_UPLOAD = BUILDER
+            .comment("Show a clickable chat prompt before uploading or generating screenshots (if false, proceeds automatically)")
+            .define("promptBeforeUpload", true);
+
     static final ModConfigSpec SPEC = BUILDER.build();
 }
