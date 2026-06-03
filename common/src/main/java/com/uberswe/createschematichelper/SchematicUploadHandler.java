@@ -27,20 +27,46 @@ import java.util.concurrent.CompletableFuture;
 public class SchematicUploadHandler {
     private static final Logger LOGGER = LogUtils.getLogger();
     private static final long MAX_FILE_SIZE = 10 * 1024 * 1024;
+    private static volatile Path pendingPath;
 
     public static void onSchematicSaved(Path filePath) {
         if (!ConfigValues.enabled) return;
 
         if (ConfigValues.autoUpload) {
-            uploadAsync(filePath);
-        } else {
-            Minecraft mc = Minecraft.getInstance();
-            mc.execute(() -> mc.setScreen(new SchematicUploadConfirmScreen(filePath)));
+            if (ConfigValues.promptBeforeUpload) {
+                pendingPath = filePath;
+                sendPrompt(filePath, "createschematichelper.confirm.message",
+                        "createschematichelper.confirm.upload", "/csh upload");
+            } else {
+                uploadAsync(filePath);
+            }
         }
+    }
+
+    private static void sendPrompt(Path filePath, String messageKey, String buttonKey, String command) {
+        String fileName = filePath.getFileName().toString();
+        MutableComponent message = new TranslatableComponent(messageKey, fileName)
+                .withStyle(ChatFormatting.GRAY);
+        MutableComponent button = new TextComponent(" [")
+                .append(new TranslatableComponent(buttonKey))
+                .append("]")
+                .withStyle(style -> style
+                        .withColor(ChatFormatting.GREEN)
+                        .withBold(true)
+                        .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, command)));
+        sendChatMessage(message.append(button));
     }
 
     public static void confirmUpload(Path filePath) {
         uploadAsync(filePath);
+    }
+
+    public static void confirmPendingUpload() {
+        Path path = pendingPath;
+        pendingPath = null;
+        if (path != null) {
+            uploadAsync(path);
+        }
     }
 
     private static void uploadAsync(Path filePath) {

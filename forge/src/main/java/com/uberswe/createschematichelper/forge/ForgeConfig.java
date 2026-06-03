@@ -49,5 +49,9 @@ public class ForgeConfig {
             .comment("Image format for rendered frames: 'jpeg' (smaller files, recommended) or 'png' (lossless)")
             .define("imageFormat", "jpeg");
 
+    public static final ForgeConfigSpec.BooleanValue PROMPT_BEFORE_UPLOAD = BUILDER
+            .comment("Show a clickable chat prompt before uploading (if false, proceeds automatically)")
+            .define("promptBeforeUpload", true);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 }
