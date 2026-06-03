@@ -10,7 +10,7 @@ public class NeoForgeConfig {
             .define("enabled", true);
 
     public static final ModConfigSpec.BooleanValue AUTO_UPLOAD = BUILDER
-            .comment("Automatically upload schematics when saved (if false, a confirmation screen is shown)")
+            .comment("Upload schematics to createmod.com when saved (if false and local screenshot saving is enabled, only screenshots are generated)")
             .define("autoUpload", true);
 
     public static final ModConfigSpec.ConfigValue<String> BASE_URL = BUILDER
@@ -52,6 +52,10 @@ public class NeoForgeConfig {
     public static final ModConfigSpec.ConfigValue<String> BACKGROUND_IMAGE = BUILDER
             .comment("Path to a custom background image file (jpeg or png). Leave empty to use the default blueprint grid background.")
             .define("backgroundImage", "");
+
+    public static final ModConfigSpec.BooleanValue PROMPT_BEFORE_UPLOAD = BUILDER
+            .comment("Show a clickable chat prompt before uploading or generating screenshots (if false, proceeds automatically)")
+            .define("promptBeforeUpload", true);
 
     static final ModConfigSpec SPEC = BUILDER.build();
 }

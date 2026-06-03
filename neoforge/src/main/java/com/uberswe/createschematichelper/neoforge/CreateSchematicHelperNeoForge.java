@@ -1,14 +1,20 @@
 package com.uberswe.createschematichelper.neoforge;
 
+import com.mojang.brigadier.Command;
 import com.mojang.logging.LogUtils;
 import com.uberswe.createschematichelper.ConfigValues;
+import com.uberswe.createschematichelper.SchematicUploadHandler;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
+import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
+
+import static net.minecraft.commands.Commands.literal;
 
 @Mod("createschematichelper")
 public class CreateSchematicHelperNeoForge {
@@ -18,6 +24,19 @@ public class CreateSchematicHelperNeoForge {
         modContainer.registerConfig(ModConfig.Type.CLIENT, NeoForgeConfig.SPEC);
         modEventBus.addListener(this::onConfigLoad);
         modEventBus.addListener(this::onConfigReload);
+
+        NeoForge.EVENT_BUS.addListener((RegisterClientCommandsEvent event) ->
+            event.getDispatcher().register(literal("csh")
+                .then(literal("upload").executes(ctx -> {
+                    SchematicUploadHandler.confirmPendingUpload();
+                    return Command.SINGLE_SUCCESS;
+                }))
+                .then(literal("render").executes(ctx -> {
+                    SchematicUploadHandler.confirmPendingRender();
+                    return Command.SINGLE_SUCCESS;
+                }))
+            )
+        );
 
         ModList.get().getModContainerById("createschematichelper")
                 .ifPresent(mc -> ConfigValues.modVersion = mc.getModInfo().getVersion().toString());
@@ -46,5 +65,6 @@ public class CreateSchematicHelperNeoForge {
         ConfigValues.saveAllFrames = NeoForgeConfig.SAVE_ALL_FRAMES.get();
         ConfigValues.imageFormat = NeoForgeConfig.IMAGE_FORMAT.get();
         ConfigValues.backgroundImage = NeoForgeConfig.BACKGROUND_IMAGE.get();
+        ConfigValues.promptBeforeUpload = NeoForgeConfig.PROMPT_BEFORE_UPLOAD.get();
     }
 }

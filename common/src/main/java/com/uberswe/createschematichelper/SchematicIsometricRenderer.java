@@ -147,7 +147,7 @@ public class SchematicIsometricRenderer {
                     (float) size.getX() * size.getX() + (float) size.getZ() * size.getZ());
             float worstProjH = size.getY() * cosPitch + worstProjW * sinPitch;
 
-            int margin = 40;
+            int margin = 120;
             scale = Math.min(
                     (float) (maxSupported - margin * 2) / Math.max(1, worstProjW),
                     (float) (maxSupported - margin * 2) / Math.max(1, worstProjH)
@@ -345,7 +345,7 @@ public class SchematicIsometricRenderer {
 
         int cropW = unionMaxX - unionMinX + 1;
         int cropH = unionMaxY - unionMinY + 1;
-        int padding = Math.max(8, Math.max(cropW, cropH) / 20);
+        int padding = Math.max(16, Math.max(cropW, cropH) / 12);
         int contentW = cropW + padding * 2;
         int contentH = cropH + padding * 2;
 

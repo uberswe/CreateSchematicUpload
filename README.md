@@ -65,7 +65,7 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | Option | Default | Description |
 |---|---|---|
 | `enabled` | `true` | Enable or disable the upload feature entirely |
-| `autoUpload` | `true` | Upload automatically on save (if `false`, a confirmation screen is shown) |
+| `autoUpload` | `true` | Upload schematics to createmod.com when saved. If `false` and local screenshot saving is enabled, only screenshots are generated |
 | `baseUrl` | `https://createmod.com` | API base URL |
 | `render360` | `true` | Render 360° rotation view (disable for faster uploads with only 4 featured angles) *(1.21.1+ only)* |
 | `frameCount` | `120` | Number of frames in the 360° rotation view (min 4, max 720) *(1.21.1+ only)* |
@@ -76,6 +76,7 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | `saveAllFrames` | `false` | Save all rotation frames locally to the schematics folder *(1.21.1+ only)* |
 | `imageFormat` | `jpeg` | Image format for rendered frames: `jpeg` (smaller files, recommended) or `png` (lossless) *(1.21.1+ only)* |
 | `backgroundImage` | *(empty)* | Absolute path to a custom background image (JPEG or PNG). Leave empty to use the default blueprint grid. *(1.21.1+ only)* |
+| `promptBeforeUpload` | `true` | Show a clickable chat prompt before uploading or generating screenshots. If `false`, proceeds automatically *(1.21.1+ only)* |
 
 ## How It Works
 
