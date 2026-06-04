@@ -57,6 +57,8 @@ public class SchematicIsometricRenderer {
     private static final int FRAMES_PER_BATCH = 8;
     private static final long MAX_TOTAL_IMAGE_BYTES = 8 * 1024 * 1024;
     private static final float QUALITY_HIGH = 0.85f;
+    private static final Vector3f BASE_LIGHT0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
+    private static final Vector3f BASE_LIGHT1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
     private static final float QUALITY_LOW = 0.75f;
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
@@ -124,10 +126,6 @@ public class SchematicIsometricRenderer {
 
         SchematicRenderer renderer = new SchematicRenderer(schematicLevel);
 
-        Vector3f light0 = new Vector3f(-1.0f, 1.2f, -0.8f).normalize();
-        Vector3f light1 = new Vector3f(0.5f, -0.2f, 1.0f).normalize();
-        RenderSystem.setShaderLights(light0, light1);
-
         Matrix4f projectionMatrix = new Matrix4f().setOrtho(
                 -fbW / 2f, fbW / 2f,
                 -fbH / 2f, fbH / 2f,
@@ -168,6 +166,21 @@ public class SchematicIsometricRenderer {
 
             for (int i = startIndex; i < end; i++) {
                 float yRot = state.angles[i];
+                float yRotRad = (float) Math.toRadians(yRot);
+                float cosY = (float) Math.cos(yRotRad);
+                float sinY = (float) Math.sin(yRotRad);
+                RenderSystem.setShaderLights(
+                        new Vector3f(
+                                BASE_LIGHT0.x() * cosY + BASE_LIGHT0.z() * sinY,
+                                BASE_LIGHT0.y(),
+                                -BASE_LIGHT0.x() * sinY + BASE_LIGHT0.z() * cosY
+                        ).normalize(),
+                        new Vector3f(
+                                BASE_LIGHT1.x() * cosY + BASE_LIGHT1.z() * sinY,
+                                BASE_LIGHT1.y(),
+                                -BASE_LIGHT1.x() * sinY + BASE_LIGHT1.z() * cosY
+                        ).normalize()
+                );
 
                 state.renderTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
                 state.renderTarget.clear(Minecraft.ON_OSX);
