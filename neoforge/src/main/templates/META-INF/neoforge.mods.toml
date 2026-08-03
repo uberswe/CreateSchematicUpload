@@ -35,3 +35,10 @@ type = "required"
 versionRange = "[0.5.1,)"
 ordering = "AFTER"
 side = "CLIENT"
+
+[[dependencies."${mod_id}"]]
+modId = "create_blueprinted"
+type = "optional"
+versionRange = "[2.0,)"
+ordering = "AFTER"
+side = "CLIENT"

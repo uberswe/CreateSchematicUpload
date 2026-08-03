@@ -13,7 +13,11 @@ import com.simibubi.create.foundation.gui.widget.IconButton;
 import com.simibubi.create.foundation.gui.widget.Label;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.uberswe.createschematichelper.SchematicDownloadHandler;
+import com.uberswe.createschematichelper.SchematicUploadHandler;
 import com.uberswe.createschematichelper.neoforge.DownloadIcon;
+import com.uberswe.createschematichelper.neoforge.ScaledIcon;
+import com.uberswe.createschematichelper.neoforge.compat.BlueprintedCompat;
+import net.createmod.catnip.gui.element.ScreenElement;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.EditBox;
@@ -21,6 +25,7 @@ import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Inventory;
+import net.neoforged.fml.ModList;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -30,18 +35,27 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(SchematicTableScreen.class)
+import java.util.List;
+
+// Higher priority than Blueprinted's mixin (default 1000) so our init tail runs after
+// theirs and can find and replace the ShareButton it adds.
+@Mixin(value = SchematicTableScreen.class, priority = 1500)
 public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScreen<SchematicTableMenu> {
     @Unique
     private static final ResourceLocation createschematichelper$TABLE_TEXTURE = ResourceLocation.fromNamespaceAndPath("createschematichelper", "textures/gui/schematic_table.png");
     @Unique
     private static final Component createschematichelper$URL_FIELD_HINT = Component.translatable("text.createschematichelper.url_field_hint");
     @Unique
-    private static final Component createschematichelper$PROCESSING_TITLE = Component.translatable("text.createschematichelper.processing");
+    private static final Component createschematichelper$DOWNLOAD_TITLE = Component.translatable("text.createschematichelper.download_title");
     @Unique
     private static final Component createschematichelper$DOWNLOAD_TOOLTIP = Component.translatable("text.createschematichelper.download_schematic");
     @Unique
     private static final Component createschematichelper$LOCAL_TOOLTIP = Component.translatable("text.createschematichelper.choose_local_schematic");
+    // Create: Blueprinted stacks 15px buttons at x+205: export (y+1), share (y+18) and its
+    // replacement refresh button (y+35). Our mode toggle continues that column at y+52,
+    // built as a matching SmallIconButton via BlueprintedCompat.
+    @Unique
+    private static final boolean createschematichelper$BLUEPRINTED = ModList.get().isLoaded("create_blueprinted");
 
     @Shadow
     private float lastChasingProgress;
@@ -61,6 +75,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     private EditBox createschematichelper$urlField;
     @Unique
     private IconButton createschematichelper$modeButton;
+    @Unique
+    private IconButton createschematichelper$shareButton;
 
     public SchematicTableScreenMixin(SchematicTableMenu container, Inventory inv, Component title) {
         super(container, inv, title);
@@ -86,11 +102,39 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         });
         this.addRenderableWidget(this.createschematichelper$urlField);
 
-        this.createschematichelper$modeButton = new IconButton(x + 208, y + 11, AllIcons.I_OPEN_FOLDER);
+        // Blueprinted anchors its column to topPos; Create's local y is topPos + 2,
+        // so the column positions must use topPos or the gaps come out uneven.
+        this.createschematichelper$modeButton = createschematichelper$BLUEPRINTED
+                ? BlueprintedCompat.createSmallButton(this.leftPos + 205, this.topPos + 52, new ScaledIcon(AllIcons.I_OPEN_FOLDER))
+                : new IconButton(x + 208, y + 11, AllIcons.I_OPEN_FOLDER);
         this.createschematichelper$modeButton.withCallback(this::createschematichelper$toggleMode);
         this.addRenderableWidget(this.createschematichelper$modeButton);
 
+        this.createschematichelper$shareButton = null;
+        if (createschematichelper$BLUEPRINTED) {
+            IconButton blueprintedShare = BlueprintedCompat.findShareButton(this.renderables);
+            if (blueprintedShare != null) {
+                this.removeWidget(blueprintedShare);
+                this.createschematichelper$shareButton = BlueprintedCompat.createShareButton(
+                        this.leftPos + 205, this.topPos + 18, this::createschematichelper$shareSelected);
+                this.addRenderableWidget(this.createschematichelper$shareButton);
+            }
+        }
+
         this.createschematichelper$toggleMode();
+    }
+
+    @Unique
+    private void createschematichelper$shareSelected() {
+        if (this.schematicsArea == null) {
+            return;
+        }
+        List<Component> available = CreateClient.SCHEMATIC_SENDER.getAvailableSchematics();
+        int index = this.schematicsArea.getState();
+        if (index < 0 || index >= available.size()) {
+            return;
+        }
+        SchematicUploadHandler.shareSchematic(available.get(index).getString());
     }
 
     @Inject(
@@ -129,11 +173,18 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         if (this.schematicsArea != null) {
             this.schematicsArea.visible = this.schematicsArea.active = localMode;
         }
+        if (createschematichelper$BLUEPRINTED) {
+            BlueprintedCompat.setShareButtonsVisible(this.renderables, localMode);
+        }
+        if (this.createschematichelper$shareButton != null) {
+            this.createschematichelper$shareButton.visible = this.createschematichelper$shareButton.active = localMode;
+        }
 
         this.createschematichelper$urlField.visible = this.createschematichelper$urlField.active = !localMode;
 
         this.createschematichelper$modeButton.setToolTip(localMode ? createschematichelper$DOWNLOAD_TOOLTIP : createschematichelper$LOCAL_TOOLTIP);
-        this.createschematichelper$modeButton.setIcon(localMode ? new DownloadIcon() : AllIcons.I_OPEN_FOLDER);
+        ScreenElement icon = localMode ? new DownloadIcon() : AllIcons.I_OPEN_FOLDER;
+        this.createschematichelper$modeButton.setIcon(createschematichelper$BLUEPRINTED ? new ScaledIcon(icon) : icon);
     }
 
     @ModifyConstant(
@@ -141,7 +192,8 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             constant = @Constant(intValue = 206)
     )
     private int createschematichelper$patchRefreshButtonX(int x) {
-        return x + 2;
+        // Blueprinted removes and re-adds the refresh button itself, so leave Create's original alone.
+        return createschematichelper$BLUEPRINTED ? x : x + 2;
     }
 
     @ModifyConstant(
@@ -149,7 +201,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             constant = @Constant(intValue = 21, ordinal = 2)
     )
     private int createschematichelper$patchRefreshButtonY(int y) {
-        return 32;
+        return createschematichelper$BLUEPRINTED ? y : 32;
     }
 
     @WrapOperation(
@@ -175,8 +227,12 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
             )
     )
     private int createschematichelper$patchTitle(GuiGraphics instance, Font font, Component text, int x, int y, int color, boolean shadow, Operation<Integer> original) {
-        if (this.createschematichelper$urlField.isVisible()) {
-            return original.call(instance, font, createschematichelper$PROCESSING_TITLE, x, y, color, shadow);
+        // Only replace the idle title; Create's own "Uploading..."/"Finished" states
+        // (text != this.title) stay visible in download mode too.
+        if (this.createschematichelper$urlField.isVisible() && text == this.title) {
+            // x was centered for the original text's width; re-center for ours
+            int adjustedX = x + (font.width(text) - font.width(createschematichelper$DOWNLOAD_TITLE)) / 2;
+            return original.call(instance, font, createschematichelper$DOWNLOAD_TITLE, adjustedX, y, color, shadow);
         }
         return original.call(instance, font, text, x, y, color, shadow);
     }

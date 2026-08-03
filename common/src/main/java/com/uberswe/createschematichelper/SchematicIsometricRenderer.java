@@ -11,16 +11,29 @@ import com.simibubi.create.content.schematics.client.SchematicRenderer;
 import net.createmod.catnip.levelWrappers.SchematicLevel;
 import net.createmod.catnip.render.SuperRenderTypeBuffer;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.ItemBlockRenderTypes;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.block.BlockRenderDispatcher;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderDispatcher;
+import net.minecraft.client.renderer.blockentity.BlockEntityRenderer;
+import net.minecraft.client.renderer.texture.OverlayTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Vec3i;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.NbtUtils;
+import net.minecraft.nbt.Tag;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BlockEntityType;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.material.FluidState;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructurePlaceSettings;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import org.jetbrains.annotations.NotNull;
@@ -40,8 +53,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,6 +85,9 @@ public class SchematicIsometricRenderer {
     }
 
     private static final ProgressCallback NOOP = (stage, current, total) -> {};
+
+    // Block entity types whose renderer already threw once; logged once and skipped thereafter
+    private static final Set<BlockEntityType<?>> FAILED_BE_TYPES = ConcurrentHashMap.newKeySet();
 
     public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
         return render360(nbtFile, NOOP);
@@ -100,6 +118,9 @@ public class SchematicIsometricRenderer {
             RenderTarget renderTarget,
             SchematicRenderer renderer,
             SuperRenderTypeBuffer buffers,
+            SchematicLevel schematicLevel,
+            List<BlockPos> fluidPositions,
+            PoseAppliedVertexConsumer fluidConsumer,
             float[] angles,
             Vec3i size,
             float scale,
@@ -109,6 +130,7 @@ public class SchematicIsometricRenderer {
 
     private record PreRenderState(
             SchematicLevel schematicLevel,
+            List<BlockPos> fluidPositions,
             Vec3i size,
             float[] angles,
             float scale,
@@ -116,12 +138,43 @@ public class SchematicIsometricRenderer {
             int fbH
     ) {}
 
+    // Create's multiblocks (fluid tanks, item vaults) save their controller reference and
+    // "LastKnownPos" as absolute world coordinates. Placed at the origin those no longer match
+    // the block's position, so on load every segment discards its controller and renders as a
+    // broken standalone block — and reformation only happens on a ticking server level.
+    // Rebasing both tags onto template-local coordinates preserves the built connectivity.
+    private static void remapMultiblockNbt(CompoundTag tag) {
+        if (!tag.contains("blocks", Tag.TAG_LIST)) {
+            return;
+        }
+        ListTag blocks = tag.getList("blocks", Tag.TAG_COMPOUND);
+        for (int i = 0; i < blocks.size(); i++) {
+            CompoundTag entry = blocks.getCompound(i);
+            if (!entry.contains("nbt", Tag.TAG_COMPOUND) || !entry.contains("pos", Tag.TAG_LIST)) {
+                continue;
+            }
+            CompoundTag nbt = entry.getCompound("nbt");
+            Optional<BlockPos> lastKnown = NbtUtils.readBlockPos(nbt, "LastKnownPos");
+            if (lastKnown.isEmpty()) {
+                continue;
+            }
+            ListTag posTag = entry.getList("pos", Tag.TAG_INT);
+            BlockPos pos = new BlockPos(posTag.getInt(0), posTag.getInt(1), posTag.getInt(2));
+            BlockPos delta = pos.subtract(lastKnown.get());
+            NbtUtils.readBlockPos(nbt, "Controller").ifPresent(controller ->
+                    nbt.put("Controller", NbtUtils.writeBlockPos(controller.offset(delta))));
+            nbt.put("LastKnownPos", NbtUtils.writeBlockPos(pos));
+        }
+    }
+
     private static PreRenderState prepareOffThread(CompoundTag tag) {
         Minecraft mc = Minecraft.getInstance();
 
         if (mc.level == null) {
             throw new IllegalStateException("No active world");
         }
+
+        remapMultiblockNbt(tag);
 
         StructureTemplate template = new StructureTemplate();
         template.load(mc.level.holderLookup(Registries.BLOCK), tag);
@@ -177,7 +230,15 @@ public class SchematicIsometricRenderer {
         StructurePlaceSettings settings = new StructurePlaceSettings();
         template.placeInWorld(schematicLevel, BlockPos.ZERO, BlockPos.ZERO, settings, RandomSource.create(), Block.UPDATE_CLIENTS);
 
-        LOGGER.info("Render setup: fb={}x{}, scale={}", fbW, fbH, scale);
+        List<BlockPos> fluidPositions = new ArrayList<>();
+        for (var entry : schematicLevel.getBlockMap().entrySet()) {
+            BlockState state = entry.getValue();
+            if (!state.isAir() && !state.getFluidState().isEmpty()) {
+                fluidPositions.add(entry.getKey().immutable());
+            }
+        }
+
+        LOGGER.info("Render setup: fb={}x{}, scale={}, fluids={}", fbW, fbH, scale, fluidPositions.size());
 
         float[] angles;
         if (ConfigValues.render360) {
@@ -191,7 +252,7 @@ public class SchematicIsometricRenderer {
             angles = FEATURED_ANGLES;
         }
 
-        return new PreRenderState(schematicLevel, size, angles, scale, fbW, fbH);
+        return new PreRenderState(schematicLevel, fluidPositions, size, angles, scale, fbW, fbH);
     }
 
     private static RenderState finalizeOnRenderThread(PreRenderState pre) {
@@ -217,7 +278,8 @@ public class SchematicIsometricRenderer {
             @Override public void draw(@NotNull RenderType type) { mcBuffers.endBatch(type); }
         };
 
-        return new RenderState(mc, renderTarget, renderer, buffers, pre.angles, pre.size, pre.scale, pre.fbW, pre.fbH);
+        return new RenderState(mc, renderTarget, renderer, buffers, pre.schematicLevel, pre.fluidPositions,
+                new PoseAppliedVertexConsumer(), pre.angles, pre.size, pre.scale, pre.fbW, pre.fbH);
     }
 
     private static void renderBatch(RenderState state, int startIndex, List<NativeImage> images,
@@ -265,6 +327,8 @@ public class SchematicIsometricRenderer {
                 );
 
                 state.renderer.render(poseStack, state.buffers);
+                renderFluids(state, poseStack);
+                renderBlockEntities(state, poseStack);
                 state.buffers.draw();
                 poseStack.popPose();
 
@@ -288,6 +352,61 @@ public class SchematicIsometricRenderer {
             state.renderTarget.destroyBuffers();
             state.mc.getMainRenderTarget().bindWrite(true);
             future.completeExceptionally(e);
+        }
+    }
+
+    // Belts, tank fluid, funnel flaps and similar Create visuals only exist as block-entity
+    // renderers; the batched block pass never draws them. The Flywheel fast paths turn
+    // themselves off for non-client levels, so these all take their vanilla render path here.
+    private static void renderBlockEntities(RenderState state, PoseStack poseStack) {
+        BlockEntityRenderDispatcher dispatcher = state.mc.getBlockEntityRenderDispatcher();
+        for (BlockEntity be : state.schematicLevel.getRenderedBlockEntities()) {
+            if (FAILED_BE_TYPES.contains(be.getType())) {
+                continue;
+            }
+            BlockEntityRenderer<BlockEntity> renderer = dispatcher.getRenderer(be);
+            if (renderer == null) {
+                continue;
+            }
+            BlockPos pos = be.getBlockPos();
+            poseStack.pushPose();
+            poseStack.translate(pos.getX(), pos.getY(), pos.getZ());
+            try {
+                renderer.render(be, 0f, poseStack, state.buffers,
+                        LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            } catch (Exception e) {
+                if (FAILED_BE_TYPES.add(be.getType())) {
+                    LOGGER.warn("Skipping block entity renderer for {} in schematic renders",
+                            BlockEntityType.getKey(be.getType()), e);
+                }
+            }
+            poseStack.popPose();
+        }
+    }
+
+    // Create's SchematicRenderer skips fluids entirely, so water/lava/waterlogged blocks are
+    // rendered here via the vanilla liquid renderer. renderLiquid emits chunk-local vertices,
+    // so the current pose plus the chunk origin is baked in through the consumer.
+    private static void renderFluids(RenderState state, PoseStack poseStack) {
+        if (state.fluidPositions.isEmpty()) {
+            return;
+        }
+        BlockRenderDispatcher dispatcher = state.mc.getBlockRenderer();
+        Matrix4f pose = poseStack.last().pose();
+        org.joml.Matrix3f normal = poseStack.last().normal();
+
+        for (BlockPos pos : state.fluidPositions) {
+            BlockState blockState = state.schematicLevel.getBlockState(pos);
+            FluidState fluid = blockState.getFluidState();
+            if (fluid.isEmpty()) {
+                continue;
+            }
+            RenderType layer = ItemBlockRenderTypes.getRenderLayer(fluid);
+            state.fluidConsumer.prepare(state.buffers.getBuffer(layer), pose, normal,
+                    pos.getX() - (pos.getX() & 15),
+                    pos.getY() - (pos.getY() & 15),
+                    pos.getZ() - (pos.getZ() & 15));
+            dispatcher.renderLiquid(pos, state.schematicLevel, state.fluidConsumer, blockState, fluid);
         }
     }
 
@@ -605,7 +724,9 @@ public class SchematicIsometricRenderer {
     private static BufferedImage nativeToBuffered(NativeImage source) {
         int w = source.getWidth();
         int h = source.getHeight();
-        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+        // Premultiplied alpha: bicubic downscaling of a straight-alpha image blends the black
+        // RGB of transparent pixels into edges, producing dark halos around the schematic.
+        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB_PRE);
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int pixel = source.getPixelRGBA(x, y);

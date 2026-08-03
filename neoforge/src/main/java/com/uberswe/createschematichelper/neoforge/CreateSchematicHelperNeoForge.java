@@ -41,6 +41,14 @@ public class CreateSchematicHelperNeoForge {
         ModList.get().getModContainerById("createschematichelper")
                 .ifPresent(mc -> ConfigValues.modVersion = mc.getModInfo().getVersion().toString());
 
+        if (ModList.get().isLoaded("create_blueprinted")) {
+            try {
+                com.uberswe.createschematichelper.neoforge.compat.BlueprintedCompat.register();
+            } catch (Throwable t) {
+                LOGGER.warn("Create: Blueprinted is present but registering the share provider failed", t);
+            }
+        }
+
         LOGGER.info("CreateSchematicHelper loaded (NeoForge)");
     }
 
