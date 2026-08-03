@@ -119,9 +119,41 @@ public class SchematicUploadHandler {
         });
     }
 
+    /**
+     * Entry point for Create: Blueprinted's share button. Runs the same pipeline as the
+     * chat upload link: a full 360° render of the schematic followed by the async upload.
+     * Blueprinted invokes its ShareProvider on the main client thread, so nothing here
+     * may block — progress and the resulting link are reported through chat messages.
+     *
+     * @return the destination base URL, or null if the schematic file could not be found
+     */
+    public static java.net.URL shareSchematic(String schematicName) {
+        Path schematicsDir = Minecraft.getInstance().gameDirectory.toPath().resolve("schematics");
+        Path filePath = schematicsDir.resolve(schematicName);
+        if (!Files.exists(filePath) && !schematicName.endsWith(".nbt")) {
+            filePath = schematicsDir.resolve(schematicName + ".nbt");
+        }
+        if (!Files.exists(filePath)) {
+            LOGGER.error("Cannot share schematic, file not found: {}", schematicName);
+            sendChatMessage(Component.translatable("createschematichelper.share.missing_file", schematicName)
+                    .withStyle(ChatFormatting.YELLOW));
+            return null;
+        }
+
+        uploadAsync(filePath);
+
+        try {
+            return URI.create(ConfigValues.baseUrl).toURL();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static void uploadAsync(Path filePath) {
         sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                 .withStyle(ChatFormatting.GRAY));
+        sendChatMessage(Component.translatable("createschematichelper.upload.private_note")
+                .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
         sendProgressBar("Rendering", 0, 1);
 
         SchematicIsometricRenderer.render360(filePath, (stage, current, total) -> {
@@ -263,7 +295,10 @@ public class SchematicUploadHandler {
             if (frame.featured()) {
                 writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
             }
-            writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
+            // A single frame is not a rotation sequence
+            if (frames.size() > 1) {
+                writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
+            }
         }
 
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
