@@ -10,6 +10,7 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.common.NeoForge;
 import org.slf4j.Logger;
@@ -41,13 +42,18 @@ public class CreateSchematicHelperNeoForge {
         ModList.get().getModContainerById("createschematichelper")
                 .ifPresent(mc -> ConfigValues.modVersion = mc.getModInfo().getVersion().toString());
 
-        if (ModList.get().isLoaded("create_blueprinted")) {
-            try {
-                com.uberswe.createschematichelper.neoforge.compat.BlueprintedCompat.register();
-            } catch (Throwable t) {
-                LOGGER.warn("Create: Blueprinted is present but registering the share provider failed", t);
+        // Registered in client setup rather than the mod constructor so Blueprinted has
+        // definitely finished constructing before we touch its registry, regardless of
+        // mod load order (see the load-order concern raised by the Blueprinted dev).
+        modEventBus.addListener((FMLClientSetupEvent event) -> event.enqueueWork(() -> {
+            if (ModList.get().isLoaded("create_blueprinted")) {
+                try {
+                    com.uberswe.createschematichelper.neoforge.compat.BlueprintedCompat.register();
+                } catch (Throwable t) {
+                    LOGGER.warn("Create: Blueprinted is present but registering the share provider failed", t);
+                }
             }
-        }
+        }));
 
         LOGGER.info("CreateSchematicHelper loaded (NeoForge)");
     }
@@ -64,13 +70,10 @@ public class CreateSchematicHelperNeoForge {
         ConfigValues.enabled = NeoForgeConfig.ENABLED.get();
         ConfigValues.autoUpload = NeoForgeConfig.AUTO_UPLOAD.get();
         ConfigValues.baseUrl = NeoForgeConfig.BASE_URL.get();
-        ConfigValues.render360 = NeoForgeConfig.RENDER_360.get();
-        ConfigValues.frameCount = NeoForgeConfig.FRAME_COUNT.get();
         ConfigValues.aspectRatio = NeoForgeConfig.ASPECT_RATIO.get();
         ConfigValues.overrideWidth = NeoForgeConfig.OVERRIDE_WIDTH.get();
         ConfigValues.overrideHeight = NeoForgeConfig.OVERRIDE_HEIGHT.get();
         ConfigValues.saveFeaturedFrames = NeoForgeConfig.SAVE_FEATURED_FRAMES.get();
-        ConfigValues.saveAllFrames = NeoForgeConfig.SAVE_ALL_FRAMES.get();
         ConfigValues.imageFormat = NeoForgeConfig.IMAGE_FORMAT.get();
         ConfigValues.backgroundImage = NeoForgeConfig.BACKGROUND_IMAGE.get();
         ConfigValues.promptBeforeUpload = NeoForgeConfig.PROMPT_BEFORE_UPLOAD.get();

@@ -17,8 +17,6 @@
   "createschematichelper.render.failed": "Failed to generate screenshots",
   "createschematichelper.share.missing_file": "Could not find schematic file \"%s\" to upload",
   "text.createschematichelper.download_title": "Download a schematic",
-  "text.createschematichelper.share_title": "Share Schematic",
-  "text.createschematichelper.share_upload": "Upload schematic to CreateMod.com",
   "text.createschematichelper.share_note1": "Your schematic will be posted privately.",
   "text.createschematichelper.share_note2": "You can then share the private link or",
   "text.createschematichelper.share_note3": "publish your schematic on the site.",

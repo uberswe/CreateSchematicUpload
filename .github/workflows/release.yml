@@ -38,7 +38,7 @@ jobs:
             game-version: '1.20.1'
             java: '17'
             forge-loaders: "forge\nneoforge"
-          - branch: mc/1.21.1
+          - branch: main
             game-version: '1.21.1'
             java: '21'
     runs-on: ubuntu-latest
@@ -186,6 +186,24 @@ jobs:
             fabric-api(required)
 
           files: ${{ steps.jars.outputs.fabric_jar }}
+
+      # Keep the checked-in mod_version in sync with what was just published, so
+      # local/dev builds on this branch are stamped with the released version.
+      - name: Commit version bump
+        if: github.event_name == 'push' || inputs.publish
+        run: |
+          version="${{ inputs.version || github.ref_name }}"
+          version="${version#v}"
+          sed -i "s/^mod_version=.*/mod_version=${version}/" gradle.properties
+          if git diff --quiet gradle.properties; then
+            echo "mod_version already ${version}, nothing to commit"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add gradle.properties
+          git commit -m "Bump mod_version to ${version}"
+          git push origin "HEAD:${{ matrix.branch }}"
 
   release:
     needs: build

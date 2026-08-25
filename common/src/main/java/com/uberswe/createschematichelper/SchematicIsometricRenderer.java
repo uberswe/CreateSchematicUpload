@@ -65,10 +65,8 @@ public class SchematicIsometricRenderer {
     private static final AtomicReference<CompletableFuture<?>> activeRender = new AtomicReference<>();
     private static final float ISOMETRIC_PITCH = 35.264f;
 
-    private static final float START_ANGLE = 45f;
-    private static final float[] FEATURED_ANGLES = {45f, 135f, 225f, 315f};
+    private static final float[] VIEW_ANGLES = {45f, 135f, 225f, 315f};
 
-    private static final int PIXELS_PER_BLOCK = 32;
     private static final int MAX_FB_SIZE = 4096;
     private static final int MIN_FB_SIZE = 768;
     private static final int TARGET_WIDTH = 1200;
@@ -89,25 +87,25 @@ public class SchematicIsometricRenderer {
     // Block entity types whose renderer already threw once; logged once and skipped thereafter
     private static final Set<BlockEntityType<?>> FAILED_BE_TYPES = ConcurrentHashMap.newKeySet();
 
-    public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile) {
-        return render360(nbtFile, NOOP);
+    public static CompletableFuture<List<RenderedFrame>> renderViews(Path nbtFile) {
+        return renderViews(nbtFile, NOOP);
     }
 
-    public static CompletableFuture<List<RenderedFrame>> render360(Path nbtFile, ProgressCallback progress) {
+    public static CompletableFuture<List<RenderedFrame>> renderViews(Path nbtFile, ProgressCallback progress) {
         CompletableFuture<?> previous = activeRender.getAndSet(null);
         if (previous != null) {
             LOGGER.info("Cancelling previous render");
             previous.cancel(false);
         }
 
-        LOGGER.info("Starting render360 for {}", nbtFile);
+        LOGGER.info("Starting view render for {}", nbtFile);
         CompletableFuture<List<RenderedFrame>> future = CompletableFuture.supplyAsync(() -> {
             try (InputStream is = Files.newInputStream(nbtFile)) {
                 return NbtIo.readCompressed(is, NbtAccounter.unlimitedHeap());
             } catch (Exception e) {
                 throw new RuntimeException("Failed to read NBT file: " + nbtFile, e);
             }
-        }).thenCompose(tag -> render360(tag, progress));
+        }).thenCompose(tag -> renderViews(tag, progress));
         activeRender.set(future);
         future.whenComplete((result, ex) -> activeRender.compareAndSet(future, null));
         return future;
@@ -240,19 +238,7 @@ public class SchematicIsometricRenderer {
 
         LOGGER.info("Render setup: fb={}x{}, scale={}, fluids={}", fbW, fbH, scale, fluidPositions.size());
 
-        float[] angles;
-        if (ConfigValues.render360) {
-            int frameCount = Math.max(4, ConfigValues.frameCount);
-            float degreesPerFrame = 360f / frameCount;
-            angles = new float[frameCount];
-            for (int i = 0; i < frameCount; i++) {
-                angles[i] = START_ANGLE + i * degreesPerFrame;
-            }
-        } else {
-            angles = FEATURED_ANGLES;
-        }
-
-        return new PreRenderState(schematicLevel, fluidPositions, size, angles, scale, fbW, fbH);
+        return new PreRenderState(schematicLevel, fluidPositions, size, VIEW_ANGLES, scale, fbW, fbH);
     }
 
     private static RenderState finalizeOnRenderThread(PreRenderState pre) {
@@ -410,7 +396,7 @@ public class SchematicIsometricRenderer {
         }
     }
 
-    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag, ProgressCallback progress) {
+    public static CompletableFuture<List<RenderedFrame>> renderViews(CompoundTag tag, ProgressCallback progress) {
         return CompletableFuture.supplyAsync(() -> prepareOffThread(tag))
                 .thenCompose(pre -> {
                     CompletableFuture<List<NativeImage>> renderFuture = new CompletableFuture<>();
@@ -430,20 +416,16 @@ public class SchematicIsometricRenderer {
                 .orTimeout(2, TimeUnit.MINUTES);
     }
 
-    public static CompletableFuture<List<RenderedFrame>> render360(CompoundTag tag) {
-        return render360(tag, NOOP);
+    public static CompletableFuture<List<RenderedFrame>> renderViews(CompoundTag tag) {
+        return renderViews(tag, NOOP);
     }
 
     private static List<RenderedFrame> cropAndConvert(List<NativeImage> rawImages, ProgressCallback progress) {
-        Set<Integer> featuredIndices = computeFeaturedIndices(rawImages.size());
-
         int fbW = rawImages.isEmpty() ? 1 : rawImages.get(0).getWidth();
         int fbH = rawImages.isEmpty() ? 1 : rawImages.get(0).getHeight();
         int unionMinX = fbW, unionMinY = fbH, unionMaxX = -1, unionMaxY = -1;
 
-        for (int idx : featuredIndices) {
-            if (idx >= rawImages.size()) continue;
-            NativeImage raw = rawImages.get(idx);
+        for (NativeImage raw : rawImages) {
             int w = raw.getWidth();
             int h = raw.getHeight();
             for (int y = 0; y < h; y++) {
@@ -497,7 +479,6 @@ public class SchematicIsometricRenderer {
         progress.onProgress("processing", 0, rawImages.size());
 
         List<BufferedImage> scaledImages = new ArrayList<>();
-        List<Boolean> featuredFlags = new ArrayList<>();
         for (int i = 0; i < rawImages.size(); i++) {
             NativeImage raw = rawImages.get(i);
             try (raw) {
@@ -519,7 +500,6 @@ public class SchematicIsometricRenderer {
                 g2d.dispose();
 
                 scaledImages.add(output);
-                featuredFlags.add(featuredIndices.contains(i));
             } catch (Exception e) {
                 LOGGER.error("Failed to process frame {}", i, e);
             }
@@ -527,13 +507,13 @@ public class SchematicIsometricRenderer {
         }
 
         float quality = QUALITY_HIGH;
-        List<RenderedFrame> result = encodeFrames(scaledImages, featuredFlags, format, ext, mimeType, quality);
+        List<RenderedFrame> result = encodeFrames(scaledImages, format, ext, mimeType, quality);
 
         if (isJpeg && totalBytes(result) > MAX_TOTAL_IMAGE_BYTES) {
             LOGGER.info("Frames total {}MB at quality {}, re-encoding at {}",
                     totalBytes(result) / (1024 * 1024), quality, QUALITY_LOW);
             quality = QUALITY_LOW;
-            result = encodeFrames(scaledImages, featuredFlags, format, ext, mimeType, quality);
+            result = encodeFrames(scaledImages, format, ext, mimeType, quality);
         }
 
         return result;
@@ -543,39 +523,23 @@ public class SchematicIsometricRenderer {
         long total = 0;
         for (RenderedFrame f : frames) {
             total += f.data().length;
-            if (f.featured()) total += f.data().length;
         }
         return total;
     }
 
-    private static List<RenderedFrame> encodeFrames(List<BufferedImage> images, List<Boolean> featuredFlags,
+    private static List<RenderedFrame> encodeFrames(List<BufferedImage> images,
                                                      String format, String ext, String mimeType, float quality) {
         List<RenderedFrame> result = new ArrayList<>();
         for (int i = 0; i < images.size(); i++) {
             try {
                 byte[] imageBytes = encodeImage(images.get(i), format, quality);
-                boolean featured = featuredFlags.get(i);
-                String filename = String.format(featured ? "frame_%03d_featured.%s" : "frame_%03d.%s", i, ext);
-                result.add(new RenderedFrame(filename, imageBytes, featured, mimeType));
+                String filename = String.format("view_%02d.%s", i, ext);
+                result.add(new RenderedFrame(filename, imageBytes, mimeType));
             } catch (Exception e) {
                 LOGGER.error("Failed to encode frame {}", i, e);
             }
         }
         return result;
-    }
-
-    private static Set<Integer> computeFeaturedIndices(int frameCount) {
-        if (frameCount <= FEATURED_ANGLES.length) {
-            Set<Integer> all = new java.util.HashSet<>();
-            for (int i = 0; i < frameCount; i++) all.add(i);
-            return all;
-        }
-        float degreesPerFrame = 360f / frameCount;
-        Set<Integer> indices = new java.util.HashSet<>();
-        for (float angle : FEATURED_ANGLES) {
-            indices.add(Math.round((angle - START_ANGLE) / degreesPerFrame));
-        }
-        return indices;
     }
 
     private static int[] parseAspectRatio(String ratio) {
@@ -588,79 +552,6 @@ public class SchematicIsometricRenderer {
             } catch (NumberFormatException ignored) {}
         }
         return new int[]{16, 9};
-    }
-
-    private static NativeImage generateBlueprintBackground(int w, int h) {
-        NativeImage bg = new NativeImage(w, h, false);
-
-        float cx = w / 2f;
-        float cy = h / 2f;
-        float maxDist = (float) Math.sqrt(cx * cx + cy * cy);
-
-        int smallGrid = Math.max(4, w / 50);
-        int largeGrid = smallGrid * 5;
-
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                float dx = x - cx;
-                float dy = y - cy;
-                float dist = (float) Math.sqrt(dx * dx + dy * dy) / maxDist;
-                float brightness = 1.0f - dist * 0.35f;
-
-                int r = clamp8(Math.round(68 * brightness));
-                int g = clamp8(Math.round(108 * brightness));
-                int b = clamp8(Math.round(140 * brightness));
-
-                boolean onLargeGrid = (x % largeGrid == 0) || (y % largeGrid == 0);
-                boolean onSmallGrid = (x % smallGrid == 0) || (y % smallGrid == 0);
-
-                if (onLargeGrid) {
-                    r = clamp8(r + 45);
-                    g = clamp8(g + 45);
-                    b = clamp8(b + 45);
-                } else if (onSmallGrid) {
-                    r = clamp8(r + 22);
-                    g = clamp8(g + 22);
-                    b = clamp8(b + 22);
-                }
-
-                bg.setPixelRGBA(x, y, 0xFF000000 | (b << 16) | (g << 8) | r);
-            }
-        }
-        return bg;
-    }
-
-    private static NativeImage compositeRegionOnBackground(NativeImage background, NativeImage source,
-            int srcX, int srcY, int cropW, int cropH, int padX, int padY, int bgW, int bgH) {
-        NativeImage result = new NativeImage(bgW, bgH, false);
-        for (int y = 0; y < bgH; y++) {
-            for (int x = 0; x < bgW; x++) {
-                result.setPixelRGBA(x, y, background.getPixelRGBA(x, y));
-            }
-        }
-
-        for (int y = 0; y < cropH; y++) {
-            for (int x = 0; x < cropW; x++) {
-                int pixel = source.getPixelRGBA(srcX + x, srcY + y);
-                int a = (pixel >> 24) & 0xFF;
-                if (a == 0) continue;
-
-                int dx = padX + x;
-                int dy = padY + y;
-                if (a == 255) {
-                    result.setPixelRGBA(dx, dy, pixel);
-                } else {
-                    int bgPixel = result.getPixelRGBA(dx, dy);
-                    int sr = pixel & 0xFF, sg = (pixel >> 8) & 0xFF, sb = (pixel >> 16) & 0xFF;
-                    int dr = bgPixel & 0xFF, dg = (bgPixel >> 8) & 0xFF, db = (bgPixel >> 16) & 0xFF;
-                    int or = sr + dr * (255 - a) / 255;
-                    int og = sg + dg * (255 - a) / 255;
-                    int ob = sb + db * (255 - a) / 255;
-                    result.setPixelRGBA(dx, dy, 0xFF000000 | (ob << 16) | (og << 8) | or);
-                }
-            }
-        }
-        return result;
     }
 
     private static int clamp8(int v) {
@@ -740,63 +631,6 @@ public class SchematicIsometricRenderer {
         return result;
     }
 
-    private static BufferedImage extractCropToBuffered(NativeImage source, int srcX, int srcY, int w, int h) {
-        BufferedImage result = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
-        int srcW = source.getWidth();
-        int srcH = source.getHeight();
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int sx = srcX + x;
-                int sy = srcY + y;
-                if (sx < 0 || sx >= srcW || sy < 0 || sy >= srcH) continue;
-                int pixel = source.getPixelRGBA(sx, sy);
-                int r = pixel & 0xFF;
-                int g = (pixel >> 8) & 0xFF;
-                int b = (pixel >> 16) & 0xFF;
-                int a = (pixel >> 24) & 0xFF;
-                result.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
-            }
-        }
-        return result;
-    }
-
-    private static BufferedImage toScaledBufferedImage(NativeImage image, boolean isJpeg) {
-        int w = image.getWidth();
-        int h = image.getHeight();
-        int imageType = isJpeg ? BufferedImage.TYPE_INT_RGB : BufferedImage.TYPE_INT_ARGB;
-        BufferedImage buffered = new BufferedImage(w, h, imageType);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int pixel = image.getPixelRGBA(x, y);
-                int r = pixel & 0xFF;
-                int g = (pixel >> 8) & 0xFF;
-                int b = (pixel >> 16) & 0xFF;
-                if (isJpeg) {
-                    buffered.setRGB(x, y, (r << 16) | (g << 8) | b);
-                } else {
-                    int a = (pixel >> 24) & 0xFF;
-                    buffered.setRGB(x, y, (a << 24) | (r << 16) | (g << 8) | b);
-                }
-            }
-        }
-
-        int targetW = TARGET_WIDTH;
-        int targetH = Math.round((float) TARGET_WIDTH * h / w);
-        if (targetW != w || targetH != h) {
-            BufferedImage scaled = new BufferedImage(targetW, targetH, imageType);
-            java.awt.Graphics2D g2d = scaled.createGraphics();
-            g2d.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
-                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-            g2d.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
-                    java.awt.RenderingHints.VALUE_RENDER_QUALITY);
-            g2d.drawImage(buffered, 0, 0, targetW, targetH, null);
-            g2d.dispose();
-            buffered = scaled;
-        }
-
-        return buffered;
-    }
-
     private static byte[] encodeImage(BufferedImage buffered, String format, float quality) throws Exception {
         if (!format.equals("jpeg")) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -815,5 +649,5 @@ public class SchematicIsometricRenderer {
         return baos.toByteArray();
     }
 
-    public record RenderedFrame(String filename, byte[] data, boolean featured, String mimeType) {}
+    public record RenderedFrame(String filename, byte[] data, String mimeType) {}
 }
