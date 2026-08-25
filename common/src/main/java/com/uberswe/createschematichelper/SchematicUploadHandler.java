@@ -14,6 +14,7 @@ import com.uberswe.createschematichelper.SchematicIsometricRenderer.RenderedFram
 
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -31,10 +32,27 @@ public class SchematicUploadHandler {
     private static final int PROGRESS_BAR_LENGTH = 20;
     private static volatile Path pendingPath;
 
+    /**
+     * When Create: Blueprinted is installed, uploads are routed through its render
+     * pipeline instead of our own isometric renderer: the delegate kicks off
+     * Blueprinted's screenshot render, which hands the finished image back to
+     * {@link #uploadWithImage} via our ShareProvider.
+     */
+    @FunctionalInterface
+    public interface BlueprintedShareDelegate {
+        void share(String schematicFileName);
+    }
+
+    private static volatile BlueprintedShareDelegate blueprintedShare;
+
+    public static void setBlueprintedShareDelegate(BlueprintedShareDelegate delegate) {
+        blueprintedShare = delegate;
+    }
+
     public static void onSchematicSaved(Path filePath) {
         if (!ConfigValues.enabled) return;
 
-        boolean wantsSave = ConfigValues.saveFeaturedFrames || ConfigValues.saveAllFrames;
+        boolean wantsSave = ConfigValues.saveFeaturedFrames;
 
         if (ConfigValues.autoUpload) {
             if (ConfigValues.promptBeforeUpload) {
@@ -94,7 +112,7 @@ public class SchematicUploadHandler {
                 .withStyle(ChatFormatting.GRAY));
         sendProgressBar("Rendering", 0, 1);
 
-        SchematicIsometricRenderer.render360(filePath, (stage, current, total) -> {
+        SchematicIsometricRenderer.renderViews(filePath, (stage, current, total) -> {
             switch (stage) {
                 case "rendering" -> sendProgressBar("Rendering", current, total);
                 case "processing" -> sendProgressBar("Processing", current, total);
@@ -120,14 +138,14 @@ public class SchematicUploadHandler {
     }
 
     /**
-     * Entry point for Create: Blueprinted's share button. Runs the same pipeline as the
-     * chat upload link: a full 360° render of the schematic followed by the async upload.
-     * Blueprinted invokes its ShareProvider on the main client thread, so nothing here
-     * may block — progress and the resulting link are reported through chat messages.
+     * Entry point for our Create: Blueprinted ShareProvider. Blueprinted has already
+     * rendered its screenshot of the schematic; this uploads the schematic file with
+     * that image attached. Runs quietly on success — Blueprinted announces the
+     * resulting link itself — but reports specific failures in chat.
      *
-     * @return the destination base URL, or null if the schematic file could not be found
+     * @return a future completing with the uploaded schematic's URL, or exceptionally on failure
      */
-    public static java.net.URL shareSchematic(String schematicName) {
+    public static CompletableFuture<URL> uploadWithImage(String schematicName, byte[] imageBytes) {
         Path schematicsDir = Minecraft.getInstance().gameDirectory.toPath().resolve("schematics");
         Path filePath = schematicsDir.resolve(schematicName);
         if (!Files.exists(filePath) && !schematicName.endsWith(".nbt")) {
@@ -137,26 +155,51 @@ public class SchematicUploadHandler {
             LOGGER.error("Cannot share schematic, file not found: {}", schematicName);
             sendChatMessage(Component.translatable("createschematichelper.share.missing_file", schematicName)
                     .withStyle(ChatFormatting.YELLOW));
-            return null;
+            return CompletableFuture.failedFuture(
+                    new IllegalArgumentException("Schematic file not found: " + schematicName));
         }
 
-        uploadAsync(filePath);
-
-        try {
-            return URI.create(ConfigValues.baseUrl).toURL();
-        } catch (Exception e) {
-            return null;
-        }
+        Path resolvedPath = filePath;
+        List<RenderedFrame> frames = imageBytes != null && imageBytes.length > 0
+                ? List.of(new RenderedFrame("preview.png", imageBytes, "image/png"))
+                : List.of();
+        return CompletableFuture.supplyAsync(() -> {
+            sendChatMessage(Component.translatable("createschematichelper.upload.private_note")
+                    .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
+            URL url;
+            try {
+                url = upload(resolvedPath, frames, false);
+            } catch (Exception e) {
+                LOGGER.error("Failed to upload schematic", e);
+                throw new RuntimeException("Failed to upload schematic", e);
+            }
+            if (url == null) {
+                // The specific reason (too large, duplicate, server error) was already
+                // reported in chat by upload()
+                throw new RuntimeException("Schematic upload was rejected");
+            }
+            return url;
+        });
     }
 
     private static void uploadAsync(Path filePath) {
+        BlueprintedShareDelegate delegate = blueprintedShare;
+        if (delegate != null) {
+            try {
+                delegate.share(filePath.getFileName().toString());
+                return;
+            } catch (Throwable t) {
+                LOGGER.error("Blueprinted share pipeline failed, falling back to built-in renderer", t);
+            }
+        }
+
         sendChatMessage(Component.translatable("createschematichelper.upload.uploading")
                 .withStyle(ChatFormatting.GRAY));
         sendChatMessage(Component.translatable("createschematichelper.upload.private_note")
                 .withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC));
         sendProgressBar("Rendering", 0, 1);
 
-        SchematicIsometricRenderer.render360(filePath, (stage, current, total) -> {
+        SchematicIsometricRenderer.renderViews(filePath, (stage, current, total) -> {
             switch (stage) {
                 case "rendering" -> sendProgressBar("Rendering", current, total);
                 case "processing" -> sendProgressBar("Processing", current, total);
@@ -166,7 +209,7 @@ public class SchematicUploadHandler {
             try {
                 saveFramesLocally(filePath, frames);
                 sendProgressBar("Uploading", 0, 0);
-                upload(filePath, frames);
+                upload(filePath, frames, true);
             } catch (Exception e) {
                 LOGGER.error("Failed to upload schematic", e);
                 sendChatMessage(Component.translatable("createschematichelper.upload.failed")
@@ -178,7 +221,7 @@ public class SchematicUploadHandler {
             CompletableFuture.runAsync(() -> {
                 try {
                     sendProgressBar("Uploading", 0, 0);
-                    upload(filePath, List.of());
+                    upload(filePath, List.of(), true);
                 } catch (Exception e) {
                     LOGGER.error("Failed to upload schematic", e);
                     sendChatMessage(Component.translatable("createschematichelper.upload.failed")
@@ -189,12 +232,12 @@ public class SchematicUploadHandler {
         });
     }
 
-    private static void upload(Path filePath, List<RenderedFrame> frames) throws Exception {
+    private static URL upload(Path filePath, List<RenderedFrame> frames, boolean announceSuccess) throws Exception {
         long fileSize = Files.size(filePath);
         if (fileSize > MAX_FILE_SIZE) {
             sendChatMessage(Component.translatable("createschematichelper.upload.too_large")
                     .withStyle(ChatFormatting.RED));
-            return;
+            return null;
         }
 
         String fileName = filePath.getFileName().toString();
@@ -205,7 +248,7 @@ public class SchematicUploadHandler {
             LOGGER.error("Schematic file is empty: {}", filePath);
             sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                     .withStyle(ChatFormatting.YELLOW));
-            return;
+            return null;
         }
 
         HttpResponse<String> response = sendUploadRequest(fileName, fileBytes, frames);
@@ -217,7 +260,7 @@ public class SchematicUploadHandler {
             LOGGER.info("Retry response: HTTP {} — {}", response.statusCode(), response.body());
         }
 
-        handleResponse(response, ConfigValues.baseUrl, frames.size());
+        return handleResponse(response, ConfigValues.baseUrl, announceSuccess);
     }
 
     private static HttpResponse<String> sendUploadRequest(String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
@@ -248,7 +291,7 @@ public class SchematicUploadHandler {
         return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private static void handleResponse(HttpResponse<String> response, String baseUrl, int imageCount) {
+    private static URL handleResponse(HttpResponse<String> response, String baseUrl, boolean announceSuccess) {
         int status = response.statusCode();
         String body = response.body();
 
@@ -259,15 +302,18 @@ public class SchematicUploadHandler {
                 String token = json.get("token").getAsString();
                 String url = baseUrl + "/u/" + token;
 
-                MutableComponent prefix = Component.translatable("createschematichelper.upload.success")
-                        .withStyle(ChatFormatting.GREEN);
-                MutableComponent link = Component.literal(url)
-                        .withStyle(style -> style
-                                .withColor(ChatFormatting.AQUA)
-                                .withUnderlined(true)
-                                .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url)));
+                if (announceSuccess) {
+                    MutableComponent prefix = Component.translatable("createschematichelper.upload.success")
+                            .withStyle(ChatFormatting.GREEN);
+                    MutableComponent link = Component.literal(url)
+                            .withStyle(style -> style
+                                    .withColor(ChatFormatting.AQUA)
+                                    .withUnderlined(true)
+                                    .withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, url)));
 
-                sendChatMessage(prefix.append(link));
+                    sendChatMessage(prefix.append(link));
+                }
+                return URI.create(url).toURL();
             } else if (status == 409) {
                 sendChatMessage(Component.translatable("createschematichelper.upload.already_exists")
                         .withStyle(ChatFormatting.YELLOW));
@@ -282,6 +328,7 @@ public class SchematicUploadHandler {
             sendChatMessage(Component.translatable("createschematichelper.upload.failed")
                     .withStyle(ChatFormatting.YELLOW));
         }
+        return null;
     }
 
     private static byte[] buildMultipartBody(String boundary, String fileName, byte[] fileBytes, List<RenderedFrame> frames) throws Exception {
@@ -292,13 +339,7 @@ public class SchematicUploadHandler {
         writePart(baos, boundary, crlf, "file", safeFileName, "application/octet-stream", fileBytes);
 
         for (RenderedFrame frame : frames) {
-            if (frame.featured()) {
-                writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
-            }
-            // A single frame is not a rotation sequence
-            if (frames.size() > 1) {
-                writePart(baos, boundary, crlf, "rotation_images", frame.filename(), frame.mimeType(), frame.data());
-            }
+            writePart(baos, boundary, crlf, "images", frame.filename(), frame.mimeType(), frame.data());
         }
 
         baos.write(("--" + boundary + "--" + crlf).getBytes(StandardCharsets.UTF_8));
@@ -316,7 +357,7 @@ public class SchematicUploadHandler {
     }
 
     private static void saveFramesLocally(Path schematicPath, List<RenderedFrame> frames) {
-        if (!ConfigValues.saveFeaturedFrames && !ConfigValues.saveAllFrames) return;
+        if (!ConfigValues.saveFeaturedFrames) return;
 
         try {
             String baseName = schematicPath.getFileName().toString().replaceFirst("\\.nbt$", "");
@@ -324,9 +365,7 @@ public class SchematicUploadHandler {
             Files.createDirectories(dir);
 
             for (RenderedFrame frame : frames) {
-                if (ConfigValues.saveAllFrames || (ConfigValues.saveFeaturedFrames && frame.featured())) {
-                    Files.write(dir.resolve(frame.filename()), frame.data());
-                }
+                Files.write(dir.resolve(frame.filename()), frame.data());
             }
             LOGGER.info("Saved rendered frames to {}", dir);
         } catch (Exception e) {

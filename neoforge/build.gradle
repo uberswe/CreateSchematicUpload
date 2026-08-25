@@ -44,7 +44,7 @@ dependencies {
     }
     compileOnly("net.createmod.ponder:ponder-neoforge:1.0.81+mc${minecraft_version}")
     // Optional integration: registers a ShareProvider so Blueprinted's share button uploads to createmod.com
-    compileOnly("maven.modrinth:create-blueprinted:2.0+mc1.21.1-neoforge")
+    compileOnly("maven.modrinth:create-blueprinted:2.2.2+mc1.21.1-neoforge")
 }
 
 // Generate mod metadata from templates

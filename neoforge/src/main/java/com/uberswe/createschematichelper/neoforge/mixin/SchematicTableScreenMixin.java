@@ -13,7 +13,6 @@ import com.simibubi.create.foundation.gui.widget.IconButton;
 import com.simibubi.create.foundation.gui.widget.Label;
 import com.simibubi.create.foundation.gui.widget.ScrollInput;
 import com.uberswe.createschematichelper.SchematicDownloadHandler;
-import com.uberswe.createschematichelper.SchematicUploadHandler;
 import com.uberswe.createschematichelper.neoforge.DownloadIcon;
 import com.uberswe.createschematichelper.neoforge.ScaledIcon;
 import com.uberswe.createschematichelper.neoforge.compat.BlueprintedCompat;
@@ -35,10 +34,8 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.List;
-
 // Higher priority than Blueprinted's mixin (default 1000) so our init tail runs after
-// theirs and can find and replace the ShareButton it adds.
+// theirs and can toggle the export/share buttons it adds.
 @Mixin(value = SchematicTableScreen.class, priority = 1500)
 public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScreen<SchematicTableMenu> {
     @Unique
@@ -75,8 +72,6 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
     private EditBox createschematichelper$urlField;
     @Unique
     private IconButton createschematichelper$modeButton;
-    @Unique
-    private IconButton createschematichelper$shareButton;
 
     public SchematicTableScreenMixin(SchematicTableMenu container, Inventory inv, Component title) {
         super(container, inv, title);
@@ -110,31 +105,7 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         this.createschematichelper$modeButton.withCallback(this::createschematichelper$toggleMode);
         this.addRenderableWidget(this.createschematichelper$modeButton);
 
-        this.createschematichelper$shareButton = null;
-        if (createschematichelper$BLUEPRINTED) {
-            IconButton blueprintedShare = BlueprintedCompat.findShareButton(this.renderables);
-            if (blueprintedShare != null) {
-                this.removeWidget(blueprintedShare);
-                this.createschematichelper$shareButton = BlueprintedCompat.createShareButton(
-                        this.leftPos + 205, this.topPos + 18, this::createschematichelper$shareSelected);
-                this.addRenderableWidget(this.createschematichelper$shareButton);
-            }
-        }
-
         this.createschematichelper$toggleMode();
-    }
-
-    @Unique
-    private void createschematichelper$shareSelected() {
-        if (this.schematicsArea == null) {
-            return;
-        }
-        List<Component> available = CreateClient.SCHEMATIC_SENDER.getAvailableSchematics();
-        int index = this.schematicsArea.getState();
-        if (index < 0 || index >= available.size()) {
-            return;
-        }
-        SchematicUploadHandler.shareSchematic(available.get(index).getString());
     }
 
     @Inject(
@@ -175,9 +146,6 @@ public abstract class SchematicTableScreenMixin extends AbstractSimiContainerScr
         }
         if (createschematichelper$BLUEPRINTED) {
             BlueprintedCompat.setShareButtonsVisible(this.renderables, localMode);
-        }
-        if (this.createschematichelper$shareButton != null) {
-            this.createschematichelper$shareButton.visible = this.createschematichelper$shareButton.active = localMode;
         }
 
         this.createschematichelper$urlField.visible = this.createschematichelper$urlField.active = !localMode;

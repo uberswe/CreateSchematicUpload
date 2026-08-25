@@ -23,7 +23,7 @@
 
 ### Upload
 - **Automatic upload** - schematics are uploaded to [createmod.com](https://createmod.com) the moment you save them in-game
-- **360° preview rendering** *(NeoForge 1.21.1+ only)* - 120 isometric frames are rendered client-side and uploaded alongside the schematic for an interactive 3D rotation view on the website
+- **Preview rendering** *(NeoForge 1.21.1+ only)* - 4 isometric screenshots are rendered client-side and uploaded alongside the schematic; with [Create: Blueprinted](https://modrinth.com/mod/create-blueprinted) installed, its rendered schematic image is used instead
 - **Progress bar** *(NeoForge 1.21.1+ only)* - a live progress bar on the action bar tracks rendering, processing, and uploading stages
 - **One-click sharing** - a clickable link appears in chat so you (or anyone) can view the schematic in a browser
 - **Claim flow** - log in on the website to claim ownership, then publish to the community
@@ -40,14 +40,14 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 
 ## Supported Versions
 
-| Branch | Minecraft | Loaders | Create | Java | 360° Viewer |
-|--------|-----------|---------|--------|------|-------------|
-| `main` / `mc/1.21.1` | 1.21.1 | NeoForge, Fabric | 6.0.10+ | 21 | Yes |
+| Branch | Minecraft | Loaders | Create | Java | Preview Images |
+|--------|-----------|---------|--------|------|----------------|
+| `main` | 1.21.1 | NeoForge, Fabric | 6.0.10+ | 21 | Yes |
 | `mc/1.20.1` | 1.20.1 | Forge, NeoForge, Fabric | 6.0.8+ | 17 | No |
 | `mc/1.19.2` | 1.19.2 | Forge, Fabric | 0.5.1+ | 17 | No |
 | `mc/1.18.2` | 1.18.2 | Forge, Fabric | 0.5.1+ | 17 | No |
 
-> **Note:** On 1.20.1 and below, schematics are uploaded without preview images. The 360° rotation viewer and progress bar are available on NeoForge 1.21.1+ only.
+> **Note:** On 1.20.1 and below, schematics are uploaded without preview images. Preview rendering and the progress bar are available on NeoForge 1.21.1+ only.
 
 ## Installation
 
@@ -67,13 +67,10 @@ This is a **client-side only** mod. It does not need to be installed on the serv
 | `enabled` | `true` | Enable or disable the upload feature entirely |
 | `autoUpload` | `true` | Upload schematics to createmod.com when saved. If `false` and local screenshot saving is enabled, only screenshots are generated |
 | `baseUrl` | `https://createmod.com` | API base URL |
-| `render360` | `true` | Render 360° rotation view (disable for faster uploads with only 4 featured angles) *(1.21.1+ only)* |
-| `frameCount` | `120` | Number of frames in the 360° rotation view (min 4, max 720) *(1.21.1+ only)* |
 | `aspectRatio` | `16:9` | Aspect ratio for rendered images (e.g. `16:9`, `4:3`, `1:1`) *(1.21.1+ only)* |
 | `overrideWidth` | `0` | Override image width in pixels (0 = automatic based on schematic size) *(1.21.1+ only)* |
 | `overrideHeight` | `0` | Override image height in pixels (0 = automatic based on schematic size) *(1.21.1+ only)* |
-| `saveFeaturedFrames` | `false` | Save the 4 featured perspective images locally to the schematics folder *(1.21.1+ only)* |
-| `saveAllFrames` | `false` | Save all rotation frames locally to the schematics folder *(1.21.1+ only)* |
+| `saveFeaturedFrames` | `false` | Save the 4 perspective screenshots locally to the schematics folder *(1.21.1+ only)* |
 | `imageFormat` | `jpeg` | Image format for rendered frames: `jpeg` (smaller files, recommended) or `png` (lossless) *(1.21.1+ only)* |
 | `backgroundImage` | *(empty)* | Absolute path to a custom background image (JPEG or PNG). Leave empty to use the default blueprint grid. *(1.21.1+ only)* |
 | `promptBeforeUpload` | `true` | Show a clickable chat prompt before uploading or generating screenshots. If `false`, proceeds automatically *(1.21.1+ only)* |
